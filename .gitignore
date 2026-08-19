@@ -1,0 +1,9 @@
+.env
+*.log
+# build outputs
+dist/
+build/
+*.out
+# OS artifacts
+.DS_Store
+Thumbs.db
