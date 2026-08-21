@@ -2,26 +2,28 @@
 
 **Week:** 00 · **Date:** 2026-08-19 · **Hours:** ~5.5
 
-Started later than I wanted. Spent the first hour just finding where I'd put the board after it arrived last week.
+Started way later than I wanted today. Spent the first hour literally just trying to find where I had put the Radxa board after it arrived in the mail last week. It was buried under a pile of other mail. 
 
 ## What I actually did
 
-Pulled out the Radxa ROCK 3C and laid everything on the desk — board, heatsink, the USB-C power supply I bought, and the SD card. First impression: it's smaller than I expected. The SoC sits in the middle under where the heatsink goes, LPDDR4 chips flanking it. Ethernet port on one end, a row of USB-A and a single USB-C on the other. There's an M.2 slot on the underside which I didn't notice until I flipped it over looking for something else.
+Finally pulled the Radxa ROCK 3C out of its box and laid everything on my desk. Board, heatsink, the USB-C power supply I bought separately, and the SD card. First impression? It is so much smaller than I expected in person. The SoC sits right in the middle (where the heatsink will eventually go), with LPDDR4 chips flanking it. Ethernet port on one end, a row of USB-A ports and a single USB-C on the other. I didn't even notice the M.2 slot on the underside until I flipped the board over trying to find the SD card slot.
 
-Didn't try to boot it today. The plan for day 1 was understanding, not doing — so I put it aside and spent most of the afternoon just reading.
+I didn't even try to boot it today. The plan for Day 1 was purely about understanding the concepts, not breaking things yet. So I pushed the hardware aside and spent most of the afternoon just reading.
 
-The main thing I worked through: what "the cloud" actually is. I've been using the phrase for years and never really stopped to think about it. It's just someone else's server in a warehouse. That's it. Google Photos is a very large Radxa ROCK 3C somewhere in a Google datacenter, except Google's version has a lot more RAM and they're reading your photos to sell ads. sdrive is the same thing, smaller, in your house, and they can't read anything because it's encrypted before it leaves your phone.
+The main concept I tried to wrap my head around was what "the cloud" actually physically *is*. I've been using that phrase for years and never really stopped to think about the physical infrastructure. It finally clicked: it's literally just someone else's computer sitting in a warehouse somewhere. Google Photos is just a very large Radxa ROCK 3C running in a Google datacenter, except Google's version has massive amounts of RAM and they are scanning your photos to sell ads. sdrive is the exact same concept, just scaled down, sitting in my house, and nobody can read my stuff because it's encrypted before it even leaves my phone.
 
-That framing helped a lot. Once I thought of it that way the client/server split made sense immediately — phone is client (it wants to store something), board is server (it waits and accepts). The only thing that trips it up is NAT: the board is inside the home network and normally unreachable from outside. That's what Tailscale solves later. Didn't go deep on that today, just noted it as the problem Week 6 addresses.
+That framing helped so much. Once I started thinking about it that way, the client/server split made total sense. The phone is the client (it generates the photo and wants to store it), the board is the server (it just waits and accepts it). The only real gotcha is NAT: the board sits inside my home network, which means it's normally completely unreachable from the outside world. That’s the exact problem Tailscale is supposed to solve later. I didn't go deep into that today, just mentally bookmarked it as a future headache for Week 6.
 
-Drew the upload path on paper — phone to cell tower to ISP to home router to the board. Drew it again without looking. Second time was messier but faster.
+I ended the day by drawing the upload path on paper. Phone -> cell tower -> ISP -> home router -> the board. Then I flipped the page and drew it again without looking. The second time was messier, but faster.
 
 ## What confused me
 
-The power supply thing. I assumed any USB-C charger would work. Turns out USB-PD negotiation is weirder than I thought — a lot of modern chargers prioritise 9V or 20V for laptops and might not reliably deliver 5V at 3A for a board that expects exactly that. Spent probably 40 minutes going down a forum rabbit hole about this. Ended up deciding the dedicated 5V/3A supply I bought is fine and I'll just use that.
+The power supply situation. I completely assumed any random USB-C laptop charger would work. Turns out, USB-PD (Power Delivery) negotiation is way weirder than I thought. A lot of modern chargers prioritize pushing 9V or 20V for laptops, and they might not reliably step down to deliver a clean 5V at 3A for a single board computer that expects exactly that baseline. 
 
-Also kept second-guessing whether the M.2 slot would actually work for an NVMe drive or only SATA. Couldn't get a straight answer from the first two pages I found. Left it as an open question — don't need it yet anyway.
+I spent probably 40 minutes going down a deep forum rabbit hole about this, reading horror stories about brownouts under load. Ended up deciding to just stick to the dedicated 5V/3A supply I bought specifically for this. Better safe than sorry.
+
+I also kept second-guessing whether that M.2 slot on the bottom of the board would actually work for an NVMe drive, or if it was SATA only. I couldn't get a straight answer from the first two wiki pages I found. I left it as an open question for now since I don't actually need it yet anyway.
 
 ## Tomorrow
 
-Setting up the repository properly and reading through the Ente architecture so I understand what I'm actually building before the board boots for the first time.
+The goal is to set up the repository properly and read through the Ente architecture so I actually understand the software stack I'm building before the board even boots for the first time.
