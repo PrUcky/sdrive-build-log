@@ -1,0 +1,11 @@
+# Gitleaks configuration file
+# For more info: https://github.com/gitleaks/gitleaks
+
+[title]
+description = "sdrive gitleaks configuration"
+
+[[rules]]
+id = "generic-api-key"
+description = "Generic API Key / Token"
+regex = '''(?i)(key|secret|token|password|auth)[=:]["']?[a-zA-Z0-9_\-]{16,40}["']?'''
+tags = ["key", "API"]
