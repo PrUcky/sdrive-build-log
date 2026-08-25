@@ -1,35 +1,56 @@
 # Day 06 — Whiteboards and Cardboard
 
-**Week:** 00 · **Date:** 2026-08-25 · **Hours:** ~4.0
+**Week:** 00 · **Date:** 2026-08-25 · **Hours:** ~5.0
 
-I completely skipped yesterday. I didn't open a terminal, I didn't look at a markdown file, and I didn't read any documentation. I needed a complete disconnect from staring at a screen, because the roadmap for today was looming over me. Today’s task was to prove that I actually understand the beast I am trying to build before I touch a single piece of silicon. 
+I took a deliberate twenty-four-hour break yesterday. After spending five consecutive days wrestling with cryptographic state machines, network address translation, and storage daemon internals, my brain was completely fried. Stepping away from the screen on August 24th was the best decision I could have made—it gave all those disparate concepts time to settle and synthesize. Today, I came back to the project with total mental clarity for the final orientation milestone: proving I understand the entire system from memory before touching a single piece of hardware.
 
 ## What I actually did
 
-I walked into the office, left my laptop closed on the desk, grabbed a dry-erase marker, and forced myself to draw the entire `sdrive` architecture on the whiteboard entirely from memory. 
+The roadmap set a strict exit criterion for Day 06: draw the complete system architecture from memory twice, without referencing a single note, browser tab, or diagram. 
 
-Then, I wiped it completely clean and drew it a second time. 
+I closed my laptop, walked over to the magnetic whiteboard in my home office, uncapped a black dry-erase marker, and began sketching the topology. 
 
-It sounds like a tedious corporate exercise, but it was incredibly revealing. It exposed a massive, fundamental flaw in how I was visualizing the data flow. The very first time I drew the ingestion loop, I drew an arrow from the mobile phone, pointing to the Go API server (`museum`), and then another arrow pointing from the Go server to the object storage bucket (`Garage`). In my head, the server was a funnel. 
+It felt like a simple exercise at first, but five minutes in, the drawing brutally exposed a lingering flaw in my mental model. On my first sketch, I drew an arrow from the mobile phone pointing to the Go API server (`museum`), and then drew another arrow from `museum` pointing into the storage engine (`Garage`). In my head, I was still instinctively treating the application server as a central funnel that ingests the data and writes it to disk.
 
-But as I stared at the whiteboard, I remembered my MinIO vs. Garage debate from Day 05. The whole reason MinIO was a bad fit is because it has to handle direct, aggressive client traffic. *Direct* client traffic. I realized my whiteboard drawing was entirely wrong. I erased the arrows. 
+I stopped with my marker hovering in mid-air. As I stared at the diagram, the realization from ADR 0004 hit me: `museum` cannot act as a proxy. If every 20MB raw photo payload had to stream through the Go runtime memory, the RK3566's CPU would spike, garbage collection pauses would stall concurrent requests, and the board would choke during bulk uploads. 
 
-The phone talks to the Go server just to ask for permission. The Go server hands the phone a temporary "pre-signed URL" (basically a one-time VIP parking pass). Then, the phone turns around and uploads the massive, encrypted multi-megabyte blob *directly* into the object store, completely bypassing the Go server. That single realization fundamentally changes how I understand the network load on this machine. The Go server isn't a funnel; it's just a traffic cop.
+I wiped the entire whiteboard completely clean with an eraser and started over from scratch. 
 
-I spent the next two hours transcribing that whiteboard session into a deeply detailed `docs/architecture.md` document, breaking down the hardware layer, the network layer, and the ingestion loop so I never forget it. I also spun up a `docs/glossary.md` file. I'm forcing myself to define all the jargon — CGNAT, E2EE, Pre-signed URLs — in my own words. If I can't explain it simply, I don't actually understand it. 
+On the second drawing, I got the sequence right:
+1. The mobile client pings `museum` over the encrypted Tailscale mesh strictly to request an upload intent token.
+2. `museum` authenticates the user via PostgreSQL and returns a cryptographic, time-limited **pre-signed S3 PUT URL**.
+3. The mobile client opens a direct HTTP stream to the `Garage` object storage daemon, uploading the encrypted ciphertext blob directly to local flash storage, completely bypassing `museum`.
+4. Only after `Garage` confirms disk write does the client notify `museum` to commit the encrypted metadata record into PostgreSQL.
 
-I cross-posted some of these architectural thoughts to Hashnode and Twitter. It feels good to finally have the "Why" and the "How" officially documented in public.
+Seeing the clean out-of-band separation between the **control plane** (`museum` + PostgreSQL) and the **data plane** (`Garage` + NVMe/SD) laid out on the whiteboard was the moment the entire architecture crystallized.
 
-And then, just as I was finishing up, the doorbell rang. 
+I spent the next two hours transcribing that whiteboard session into a comprehensive master document at `docs/architecture.md`. I structured it into four concrete layers: the Physical Hardware Layer (RK3566, LPDDR4, PCIe 2.1 bus), the Network Layer (Tailscale WireGuard mesh, NAT traversal, CGNAT bypass), the Core Software Components, and the detailed seven-step Ingestion Flow. 
 
-The hardware finally arrived. I spent twenty minutes just unboxing it and inventorying the parts on my desk. It is a tiny, unassuming cardboard box containing the Radxa ROCK 3C, a generic power supply, and a high-endurance microSD card. I held the board in my hand. It is barely the size of a credit card. It is entirely silent. It has no moving parts. And yet, this tiny little square of green fiberglass and silicon is going to replace a massive, multi-billion dollar Google data center for my entire digital life. The physical reality of the project just hit me.
+I also authored `docs/glossary.md` to establish a living reference for all domain terms—Blob, CGNAT, E2EE, Pre-signed URLs, Single-Board Computers, and Zero-Knowledge proofs—written in conversational, plain-English language with intuitive analogies.
+
+Just as I committed the documentation, the delivery doorbell rang. 
+
+The physical hardware package had arrived. I spent thirty minutes unboxing everything and carefully inventorying the components across my anti-static mat:
+- **Radxa ROCK 3C:** The single-board computer itself. It is remarkably tiny—the exact dimensions of a credit card. Seeing the clean black solder mask, the gold-plated M.2 traces on the underside, and the dense surface-mount capacitors surrounding the RK3566 SoC made the project feel suddenly, tangibly real.
+- **SanDisk Max Endurance 64GB MicroSD Card:** High-write-cycle flash storage specifically rated for continuous dashcam/security camera writes, which will serve as our prototype boot medium.
+- **Aluminum Passive Heatsink:** A grooved anodized black aluminum heatsink with pre-applied 3M thermal adhesive tape to cool the RK3566 under sustained loads.
+- **Dedicated 5V/3A Power Supply:** A regulated AC adapter with a heavy-gauge USB-C cable to prevent voltage drop under transient load spikes.
+
+Holding that tiny circuit board in my hand was an almost surreal experience. That single square of fiberglass, consuming less than 3 watts of electricity and sitting silently on my bookshelf, is going to replace a multi-billion dollar hyperscale cloud datacenter for my entire digital photo library. 
+
+I finished the day by publishing a build-in-public update to Twitter/X and drafting our progress notes on Hashnode.
 
 ## What confused me
 
-I struggled heavily with explaining the architecture out loud. The roadmap demanded I explain it to someone non-technical in three minutes. I tried explaining the concept of pre-signed URLs to my partner over coffee, and I completely lost her the moment I said "S3-compatible bucket." 
+The roadmap had a great behavioral challenge for today: explain the `sdrive` architecture out loud to a non-technical person in three minutes without hesitating. 
 
-I had to backtrack and come up with a real-world analogy on the fly. *Note to self: when explaining this to non-technical people, just say "the app asks the server for a temporary parking pass, and then the app parks the car itself."* That clicked instantly. 
+I tried explaining the system to my partner over an afternoon cup of coffee. I started off explaining that "the mobile app uses Argon2id key derivation and XChaCha20-Poly1305 symmetric ciphers to push encrypted blobs to an S3-compatible Rust storage daemon via pre-signed URLs." Within thirty seconds, her eyes had completely glazed over. 
+
+I stopped, took a breath, and tried again using a physical analogy:
+> *"Imagine you want to park a confidential package in a bank vault. Instead of handing the package to the bank manager (who might peek inside), the bank manager just gives you a one-time, 5-minute VIP keycard to a specific deposit box. You walk directly into the vault, drop the locked box in yourself, lock it with your own secret padlock, and then tell the manager 'it's done.' The bank manager knows a box is parked in spot 42, but has no key, no camera, and no idea what's inside."*
+
+That analogy clicked immediately. Framing pre-signed URLs as "one-time VIP parking passes" is now my go-to mental model for explaining out-of-band object storage to anyone.
 
 ## Tomorrow
 
-Tomorrow is the official Week 00 retro. It’s time to look back at the orientation phase, write my first long-form article summarizing the vision, and mentally prepare for Week 01. We are finally plugging this tiny board into the wall.
+Tomorrow is Day 07: The Week 00 Retro and Long-Form Article. I will complete `weeks/week-00/retro.md`, write our first comprehensive public technical essay covering the architectural foundation, and mentally prepare for Week 01: Linux Bring-up, serial UART consoles, and flashing our first Armbian kernel image onto the board.
