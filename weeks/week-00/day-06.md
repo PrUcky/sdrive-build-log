@@ -1,25 +1,35 @@
 # Day 06 — Whiteboards and Cardboard
 
-**Week:** 00 · **Date:** 2026-08-25 · **Hours:** ~3.0
+**Week:** 00 · **Date:** 2026-08-25 · **Hours:** ~4.0
 
-I skipped yesterday. I needed a break from staring at a screen, but today I got back into it. The roadmap demanded that I prove I actually understand what I'm building before I touch a single line of code or flash an OS. 
+I completely skipped yesterday. I didn't open a terminal, I didn't look at a markdown file, and I didn't read any documentation. I needed a complete disconnect from staring at a screen, because the roadmap for today was looming over me. Today’s task was to prove that I actually understand the beast I am trying to build before I touch a single piece of silicon. 
 
 ## What I actually did
 
-I closed my laptop, grabbed a marker, and drew the entire `sdrive` architecture on the whiteboard in my office. Then I erased it and drew it again. 
+I walked into the office, left my laptop closed on the desk, grabbed a dry-erase marker, and forced myself to draw the entire `sdrive` architecture on the whiteboard entirely from memory. 
 
-It sounds silly, but it exposed a gap in my thinking almost immediately. The first time I drew it, I routed the data flow from the phone, into the Go server (`museum`), and then into the object store (`Garage`). But that's wrong. I remembered my realization from yesterday: the phone hits the object store *directly* using pre-signed URLs. The second time I drew it, the lines went to the right places. 
+Then, I wiped it completely clean and drew it a second time. 
 
-I transcribed that whiteboard session into a formal `docs/architecture.md` file, detailing the five core components and the exact upload data flow. I also started a `docs/glossary.md` file. There’s a lot of jargon in this space — CGNAT, pre-signed URLs, E2EE — and writing out the definitions in my own words is the only way I actually retain them. I cross-posted these updates to the new social accounts to act as my first official public daily posts.
+It sounds like a tedious corporate exercise, but it was incredibly revealing. It exposed a massive, fundamental flaw in how I was visualizing the data flow. The very first time I drew the ingestion loop, I drew an arrow from the mobile phone, pointing to the Go API server (`museum`), and then another arrow pointing from the Go server to the object storage bucket (`Garage`). In my head, the server was a funnel. 
 
-And then, the doorbell rang.
+But as I stared at the whiteboard, I remembered my MinIO vs. Garage debate from Day 05. The whole reason MinIO was a bad fit is because it has to handle direct, aggressive client traffic. *Direct* client traffic. I realized my whiteboard drawing was entirely wrong. I erased the arrows. 
 
-The hardware arrived! A tiny cardboard box containing the Radxa ROCK 3C, a power supply, and a high-endurance microSD card. I unboxed it and laid it out on the desk. It’s wild to think that this tiny piece of silicon, barely the size of a credit card, is going to replace a multi-billion dollar Google data center for my personal life.
+The phone talks to the Go server just to ask for permission. The Go server hands the phone a temporary "pre-signed URL" (basically a one-time VIP parking pass). Then, the phone turns around and uploads the massive, encrypted multi-megabyte blob *directly* into the object store, completely bypassing the Go server. That single realization fundamentally changes how I understand the network load on this machine. The Go server isn't a funnel; it's just a traffic cop.
+
+I spent the next two hours transcribing that whiteboard session into a deeply detailed `docs/architecture.md` document, breaking down the hardware layer, the network layer, and the ingestion loop so I never forget it. I also spun up a `docs/glossary.md` file. I'm forcing myself to define all the jargon — CGNAT, E2EE, Pre-signed URLs — in my own words. If I can't explain it simply, I don't actually understand it. 
+
+I cross-posted some of these architectural thoughts to Hashnode and Twitter. It feels good to finally have the "Why" and the "How" officially documented in public.
+
+And then, just as I was finishing up, the doorbell rang. 
+
+The hardware finally arrived. I spent twenty minutes just unboxing it and inventorying the parts on my desk. It is a tiny, unassuming cardboard box containing the Radxa ROCK 3C, a generic power supply, and a high-endurance microSD card. I held the board in my hand. It is barely the size of a credit card. It is entirely silent. It has no moving parts. And yet, this tiny little square of green fiberglass and silicon is going to replace a massive, multi-billion dollar Google data center for my entire digital life. The physical reality of the project just hit me.
 
 ## What confused me
 
-Nothing explicitly technical today, but I did struggle with explaining the architecture out loud. I tried to explain the concept of pre-signed URLs to my partner in three minutes, and I completely lost her at "S3-compatible bucket." Note to self: when explaining this to non-technical people, just say "the app asks the server for a temporary parking pass, and then the app parks the car itself."
+I struggled heavily with explaining the architecture out loud. The roadmap demanded I explain it to someone non-technical in three minutes. I tried explaining the concept of pre-signed URLs to my partner over coffee, and I completely lost her the moment I said "S3-compatible bucket." 
+
+I had to backtrack and come up with a real-world analogy on the fly. *Note to self: when explaining this to non-technical people, just say "the app asks the server for a temporary parking pass, and then the app parks the car itself."* That clicked instantly. 
 
 ## Tomorrow
 
-The Week 00 retro. And then, we finally plug this board into the wall.
+Tomorrow is the official Week 00 retro. It’s time to look back at the orientation phase, write my first long-form article summarizing the vision, and mentally prepare for Week 01. We are finally plugging this tiny board into the wall.
