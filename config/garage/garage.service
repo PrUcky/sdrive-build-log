@@ -1,0 +1,36 @@
+[Unit]
+Description=Garage Object Storage Daemon (sdrive Storage Plane)
+Documentation=https://garagehq.deuxfleurs.fr/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sdrive-garage
+Group=sdrive-garage
+ExecStart=/usr/local/bin/garage server -c /etc/garage.toml
+Restart=always
+RestartSec=5s
+
+# ------------------------------------------------------------------------------
+# Systemd Security Hardening & Sandboxing
+# ------------------------------------------------------------------------------
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/garage /var/log/garage
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+NoNewPrivileges=yes
+MemoryMax=512M
+LimitNOFILE=65536
+
+# Standard Output Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=garage-s3
+
+[Install]
+WantedBy=multi-user.target

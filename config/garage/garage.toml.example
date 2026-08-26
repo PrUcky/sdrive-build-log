@@ -1,0 +1,42 @@
+# ==============================================================================
+# Garage Configuration File — sdrive Standalone Node
+# Reference: https://garagehq.deuxfleurs.fr/documentation/reference-manual/configuration/
+# ==============================================================================
+
+# Unique identifier for this storage node (generated via: openssl rand -hex 32)
+# In standalone sdrive appliances, replication factor is 1.
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+
+# Path to the LMDB database cache size in bytes.
+# For a 4GB RAM Radxa ROCK 3C, allocate 128MB to metadata cache.
+metadata_auto_snapshot_interval = "6h"
+
+# ------------------------------------------------------------------------------
+# Network & RPC Settings (Cluster communication)
+# ------------------------------------------------------------------------------
+[rpc]
+# In standalone mode, bind RPC strictly to localhost to prevent external exposure.
+bind_addr = "127.0.0.1:3901"
+public_addr = "127.0.0.1:3901"
+secret_key = "REPLACE_WITH_GENERATED_RPC_SECRET_32_BYTES_HEX"
+
+# ------------------------------------------------------------------------------
+# S3 API Endpoint Configuration (Client-Facing Ingestion)
+# ------------------------------------------------------------------------------
+[s3_api]
+# Bind to all interfaces (or Tailscale IP: 100.64.0.10:3900)
+api_bind_addr = "0.0.0.0:3900"
+s3_region = "garage"
+root_domain = ".s3.sdrive.local"
+
+# Maximum payload size for individual multipart chunks (default: 50MB)
+max_part_size = 52428800
+
+# ------------------------------------------------------------------------------
+# Administration API (Local CLI & museum Daemon Management)
+# ------------------------------------------------------------------------------
+[admin]
+api_bind_addr = "127.0.0.1:3903"
+admin_token = "REPLACE_WITH_SECURE_ADMIN_TOKEN_HEX"
+metrics_token = "REPLACE_WITH_PROMETHEUS_METRICS_TOKEN"
