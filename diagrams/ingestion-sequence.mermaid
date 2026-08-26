@@ -1,0 +1,42 @@
+sequenceDiagram
+    autonumber
+    actor User as User Mobile Handset
+    participant App as sdrive Client (Ente)
+    participant VPN as Tailscale WireGuard Overlay
+    participant Museum as Museum API (Go Daemon)
+    participant DB as PostgreSQL 16
+    participant Garage as Garage S3 Daemon (Rust)
+    participant Disk as Flash Storage (/var/lib/garage)
+
+    Note over User,App: Step 1: Client-Side Processing & Encryption
+    User->>App: Capture New Photo / Video
+    App->>App: Extract EXIF & GPS Coordinates
+    App->>App: Render Compressed Thumbnail
+    App->>App: Derive Key via Argon2id (Master Passphrase)
+    App->>App: Encrypt Payload & Thumbnails (XChaCha20-Poly1305)
+
+    Note over App,Museum: Step 2: Out-of-Band Intent Authorization
+    App->>VPN: Send POST /api/v1/upload/intent (File Hash, Ciphertext Size)
+    VPN->>Museum: Forward Encrypted TLS Request
+    Museum->>DB: Query User Quota & Active Session
+    DB-->>Museum: Session Valid & Quota Available
+    Museum->>Garage: Generate Pre-Signed S3 PUT URL (HMAC-SHA256, 10m TTL)
+    Garage-->>Museum: Pre-Signed URL Endpoint
+    Museum-->>VPN: HTTP 200 (Pre-Signed URL Payload)
+    VPN-->>App: Deliver Pre-Signed S3 URL
+
+    Note over App,Garage: Step 3: Direct Data Plane Stream
+    App->>VPN: HTTP PUT /sdrive-data/blob-uuid (Direct Ciphertext Stream)
+    VPN->>Garage: Stream Multi-Megabyte Ciphertext (Bypassing Museum Heap)
+    Garage->>Disk: Asynchronous Write & fsync (Tokio I/O)
+    Disk-->>Garage: Block Acknowledged
+    Garage-->>VPN: HTTP 200 OK (ETag Verified)
+    VPN-->>App: Upload Acknowledged
+
+    Note over App,DB: Step 4: Metadata Commitment
+    App->>VPN: POST /api/v1/upload/confirm (Encrypted Metadata, Album ID)
+    VPN->>Museum: Forward Final Commit Payload
+    Museum->>DB: INSERT INTO file_metadata (file_id, encrypted_meta, committed=TRUE)
+    DB-->>Museum: Transaction Committed
+    Museum-->>VPN: HTTP 201 Created (Upload Index Complete)
+    VPN-->>App: Sync Complete Banner

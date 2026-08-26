@@ -1,0 +1,25 @@
+flowchart LR
+    subgraph RemoteClient["Remote Environment (Cellular 5G / Coffee Shop)"]
+        Phone["Mobile Device (Ente App)<br/>Tailscale Node: 100.64.0.5"]
+    end
+
+    subgraph ISPZone["Public Internet & ISP Infrastructure"]
+        CGNAT["ISP Carrier-Grade NAT Pool<br/>(No Public IPv4 Address)"]
+        DERP["Tailscale Coordination Server<br/>& DERP Relay Network"]
+    end
+
+    subgraph HomeLAN["Home Network (Local LAN: 192.168.1.0/24)"]
+        Router["Home Gateway / Wi-Fi Router<br/>(No Inbound Ports Forwarded)"]
+        Switch["Gigabit Ethernet Switch"]
+        
+        subgraph Node["sdrive Appliance (Radxa ROCK 3C)"]
+            NIC["Realtek RTL8211F GbE PHY<br/>LAN IP: 192.168.1.150"]
+            Tun["Tailscale WireGuard Interface (tailscale0)<br/>Mesh IP: 100.64.0.10"]
+            Daemon["Museum (Port 8080) & Garage (Port 3900)"]
+        end
+    end
+
+    Phone <--> |STUN / ICE Hole Punching| DERP
+    Node <--> |STUN / ICE Hole Punching| DERP
+    Phone === |Direct P2P Encrypted WireGuard Tunnel| Tun
+    Router --- Switch --- NIC --- Tun --- Daemon

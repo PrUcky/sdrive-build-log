@@ -1,0 +1,42 @@
+graph TD
+    subgraph Client["Client Boundary (Mobile Handset)"]
+        Camera["Camera Sensor / Photo Library"]
+        LocalML["Local Neural Engine (Face & Object Indexing)"]
+        KDF["Key Derivation (Argon2id)"]
+        Cipher["Symmetric Cipher (XChaCha20-Poly1305)"]
+        ClientApp["Ente Mobile App Core"]
+    end
+
+    subgraph Network["Network Transport Layer (Encrypted Overlay)"]
+        WireGuard["Tailscale Mesh (WireGuard P2P Tunnel)"]
+    end
+
+    subgraph Appliance["sdrive Appliance Boundary (Radxa ROCK 3C - RK3566)"]
+        subgraph ControlPlane["Control Plane (Metadata & Auth)"]
+            Museum["museum Daemon (Go Backend API)"]
+            Postgres[("PostgreSQL 16 (Encrypted Metadata)")]
+        end
+
+        subgraph DataPlane["Data Plane (Object Storage)"]
+            Garage["Garage S3 Daemon (Rust / Tokio)"]
+            StorageMedium[("Flash Storage: MicroSD / NVMe SSD")]
+        end
+    end
+
+    Camera --> LocalML
+    LocalML --> Cipher
+    KDF --> Cipher
+    Cipher --> ClientApp
+
+    ClientApp == "1. Auth & Pre-signed URL Request" ==> WireGuard
+    WireGuard ==> Museum
+    Museum <--> Postgres
+    Museum -. "2. Sign S3 PUT URL" .-> Garage
+
+    ClientApp == "3. Direct Ciphertext Stream (Pre-signed PUT)" ==> WireGuard
+    WireGuard ==> Garage
+    Garage --> StorageMedium
+
+    ClientApp == "4. Commit Metadata" ==> WireGuard
+    WireGuard ==> Museum
+    Museum --> Postgres
