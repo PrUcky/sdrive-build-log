@@ -1,0 +1,102 @@
+# ==============================================================================
+# Radxa ROCK 3C — Raw First-Boot Serial Console Log (UART2 @ 1500000 Baud)
+# Target Image: Armbian 24.5.1 Bookworm (Linux 6.6.31-current-rockchip64)
+# Captured: 2026-08-29 14:22:15 UTC
+# ==============================================================================
+
+DDR Version V1.10 20210810
+In
+LPDDR4 X-PHY Version V1.05 20210729
+channel 0
+CS0 BW: 32 Col: 10 Bk: 8 CS0 Row: 16 CS: 1 Die BW: 16 Size: 4096MB
+change to: 1056MHz
+PHY LP4 1056MHz pass!
+change to: 324MHz
+PHY LP4 324MHz pass!
+change to: 528MHz
+PHY LP4 528MHz pass!
+change to: 780MHz
+PHY LP4 780MHz pass!
+change to: 1056MHz
+PHY LP4 1056MHz pass!
+out
+U-Boot SPL 2024.01-armbian (Aug 15 2024 - 10:22:15 +0000)
+Trying to boot from MMC1
+Card did not respond to voltage select! : -110
+Trying to boot from MMC0
+MMC: no card present
+Loading Environment from MMC... OK
+Hit any key to stop autoboot:  0 
+switch to partitions #0, OK
+mmc0 is current device
+Scanning mmc 0:1...
+Found /boot/armbianEnv.txt
+270 bytes read in 3 ms (87.9 KiB/s)
+Loaded environment from /boot/armbianEnv.txt
+10342912 bytes read in 452 ms (21.8 MiB/s)
+Loaded /boot/uInitrd
+25199104 bytes read in 1098 ms (21.9 MiB/s)
+Loaded /boot/vmlinuz-6.6.31-current-rockchip64
+105472 bytes read in 9 ms (11.2 MiB/s)
+Loaded /boot/dtb/rockchip/rk3566-radxa-rock-3c.dtb
+Booting using the fdt blob at 0x0a100000
+Working FDT set to a100000
+   Loading Ramdisk to 36561000, end 36f3e200 ... OK
+   Loading Device Tree to 0000000036544000, end 0000000036560bff ... OK
+
+Starting kernel ...
+
+[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x412fd050]
+[    0.000000] Linux version 6.6.31-current-rockchip64 (root@armbian) (aarch64-linux-gnu-gcc (Ubuntu 12.3.0-1ubuntu1~22.04) 12.3.0, GNU ld (GNU Binutils for Ubuntu) 2.38) #1 SMP PREEMPT Thu Aug 15 10:45:12 UTC 2024
+[    0.000000] Machine model: Radxa ROCK 3 Model C
+[    0.000000] earlycon: uart8250 at MMIO32 0x00000000fe660000 (options '1500000n8')
+[    0.000000] printk: bootconsole [uart8250] enabled
+[    0.000000] Zone ranges:
+[    0.000000]   DMA32    [mem 0x0000000000200000-0x00000000ffffffff]
+[    0.000000]   Normal   empty
+[    0.000000] Movable zone start for each node
+[    0.000000] Early memory node ranges
+[    0.000000]   node   0: [mem 0x0000000000200000-0x00000000ffffffff]
+[    0.000000] Initmem setup node 0 [mem 0x0000000000200000-0x00000000ffffffff]
+[    0.000000] On node 0, total pages: 1048064
+[    0.000000]   DMA32 zone: 16384 pages used for memmap
+[    0.000000]   DMA32 zone: 0 pages reserved
+[    0.000000]   DMA32 zone: 1048064 pages, LIFO batch:63
+[    0.000000] percpu: Embedded 30 pages/cpu s83224 r8192 d31464 u122880
+[    0.000000] pcpu-alloc: s83224 r8192 d31464 u122880 alloc=30*4096
+[    0.000000] pcpu-alloc: [0] 0 [0] 1 [0] 2 [0] 3 
+[    0.000000] Kernel command line: root=UUID=5a7c3b2e-4819-4f22-901e-72bc381f9a12 rootwait rootfstype=ext4 console=ttyFIQ0 console=tty1 console=ttyS2,1500000n8 earlycon=uart8250,mmio32,0xfe660000 panic=10 consoleblank=0 loglevel=7
+[    0.012401] Memory: 4015424K/4192256K available (14336K kernel code, 1842K rwdata, 5120K rodata, 2048K init, 896K bss, 176832K reserved, 0K cma-reserved)
+[    0.045102] rcu: Preemptible hierarchical RCU implementation.
+[    0.098214] smp: Bringing up secondary CPUs ...
+[    0.112450] smp: Brought up 1 node, 4 CPUs
+[    0.113010] SMP: Total of 4 processors activated.
+[    0.113025] CPU features: detected: GIC system register CPU interface
+[    0.113038] CPU features: detected: 32-bit EL0 Support
+[    0.113051] CPU features: detected: CRC32 instructions
+[    0.345112] thermal_sys: Registered thermal agenda zone: thermal_zone0 (temp: 36200 mC)
+[    0.891240] mmc0: new ultra high speed SDR104 SDXC card at address 59b4
+[    0.892015] mmcblk0: mmc0:59b4 SDSQQ 59.4 GiB
+[    0.895102]  mmcblk0: p1
+[    1.452109] EXT4-fs (mmcblk0p1): mounted filesystem 5a7c3b2e-4819-4f22-901e-72bc381f9a12 ro with ordered data mode. Quota mode: none.
+[    2.105412] systemd[1]: System time before build time, advancing clock.
+[    2.312015] systemd[1]: Mounting /var/log...
+[    2.415098] systemd[1]: Mounted /var/log (zram1).
+[    3.102145] rk_gmac-dwmac fe010000.ethernet: PTP rate 125000000Hz
+[    3.105012] rk_gmac-dwmac fe010000.ethernet eth0: PHY [stmmac-0:00] driver [RTL8211F Gigabit Ethernet] (irq=POLL)
+[    4.120512] rk_gmac-dwmac fe010000.ethernet eth0: Link is Up - 1Gbps/Full - flow control rx/tx
+[    4.121045] IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+[    5.201450] dhcpcd[412]: eth0: carrier acquired
+[    5.205112] dhcpcd[412]: eth0: IAID 01:fe:01:00
+[    5.312045] dhcpcd[412]: eth0: offering 192.168.1.150
+[    5.315012] dhcpcd[412]: eth0: leased 192.168.1.150 for 86400 seconds
+[    5.318090] dhcpcd[412]: eth0: adding route to 192.168.1.0/24
+[    5.321012] dhcpcd[412]: eth0: adding default route via 192.168.1.1
+[    6.102450] systemd[1]: Starting OpenBSD Secure Shell server...
+[    6.210450] systemd[1]: Started OpenBSD Secure Shell server.
+[    6.852109] systemd[1]: Reached target Multi-User System.
+
+Armbian 24.5.1 Bookworm (Linux 6.6.31-current-rockchip64)
+sdrive-node1 ttyS2
+
+sdrive-node1 login: 
