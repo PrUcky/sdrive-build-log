@@ -1,0 +1,34 @@
+[Unit]
+Description=sdrive Hardware Telemetry & Health Watchdog
+Documentation=https://github.com/PrUcky/sdrive-build-log
+After=local-fs.target systemd-journald.service
+Wants=local-fs.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/sdrive-health-watchdog.sh
+Restart=always
+RestartSec=10s
+
+# ------------------------------------------------------------------------------
+# Security Hardening & Sandboxing
+# ------------------------------------------------------------------------------
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/log
+PrivateTmp=yes
+ProtectKernelTunables=no
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+NoNewPrivileges=yes
+MemoryMax=64M
+CPUQuota=5%
+
+# Logging Configuration
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sdrive-health
+
+[Install]
+WantedBy=multi-user.target
