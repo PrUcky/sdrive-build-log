@@ -1,0 +1,33 @@
+[Unit]
+Description=sdrive Network Connectivity & Self-Healing Watchdog
+Documentation=https://github.com/PrUcky/sdrive-build-log
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/sdrive-network-watchdog.sh
+Restart=always
+RestartSec=15s
+
+# ------------------------------------------------------------------------------
+# Security Sandboxing & Resource Isolation
+# ------------------------------------------------------------------------------
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/log /run
+PrivateTmp=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+NoNewPrivileges=yes
+MemoryMax=32M
+CPUQuota=3%
+
+# Logging Configuration
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sdrive-netwatch
+
+[Install]
+WantedBy=multi-user.target
