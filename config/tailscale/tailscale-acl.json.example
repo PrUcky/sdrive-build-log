@@ -1,0 +1,61 @@
+{
+  // ===========================================================================
+  // Tailscale Access Control Policy (ACL) — sdrive Appliance
+  // Reference: https://tailscale.com/kb/1018/acls/
+  // ===========================================================================
+
+  "tagOwners": {
+    "tag:sdrive-nodes": ["autogroup:admin"]
+  },
+
+  "groups": {
+    "group:admin":  ["admin@example.com"],
+    "group:family": ["user1@example.com", "user2@example.com"]
+  },
+
+  "hosts": {
+    "sdrive-node1": "100.64.0.10"
+  },
+
+  "acls": [
+    // 1. Administrators have full access to SSH and all services on sdrive nodes
+    {
+      "action": "accept",
+      "src": ["group:admin"],
+      "dst": [
+        "tag:sdrive-nodes:22",   // OpenSSH Management
+        "tag:sdrive-nodes:3900", // Garage S3 API (Direct Ciphertext Ingestion)
+        "tag:sdrive-nodes:8080", // Museum Backend API
+        "tag:sdrive-nodes:3903"  // Garage Admin API (Local metrics)
+      ]
+    },
+
+    // 2. Family mobile clients can ONLY access the S3 and Museum API ports
+    {
+      "action": "accept",
+      "src": ["group:family"],
+      "dst": [
+        "tag:sdrive-nodes:3900", // Direct S3 Ciphertext Stream
+        "tag:sdrive-nodes:8080"  // Museum Intent & Sync API
+      ]
+    },
+
+    // 3. Prevent sdrive appliance from initiating outbound connections to family phones
+    // (Unidirectional client-to-server traffic only)
+    {
+      "action": "accept",
+      "src": ["tag:sdrive-nodes"],
+      "dst": ["tag:sdrive-nodes:*"]
+    }
+  ],
+
+  // SSH Access Policy
+  "ssh": [
+    {
+      "action": "check",
+      "src": ["group:admin"],
+      "dst": ["tag:sdrive-nodes"],
+      "users": ["sdrive-admin"]
+    }
+  ]
+}
