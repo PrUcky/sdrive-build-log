@@ -37,7 +37,7 @@ This week, we took `sdrive` from an abstract architectural blueprint of cryptogr
 
 ## 2. The Silicon Foundation: Rockchip RK3566 & Passive Cooling
 
-In [Architectural Decision Record 0002](../../docs/adr/0002-hardware-platform-radxa-rock-3c.md), we selected the **Radxa ROCK 3C** over the Raspberry Pi 4. The reasoning came down to three hardware attributes:
+In [Architectural Decision Record 0002](../../docs/decisions/0002-rock-3c-over-rk3576.md), we selected the **Radxa ROCK 3C** over the Raspberry Pi 4. The reasoning came down to three hardware attributes:
 
 1. **Rockchip RK3566 SoC:** A monolithic 22nm quad-core ARM Cortex-A55 processor clocked up to 1.8GHz. Unlike high-power big.LITTLE architectures that generate 10–15 Watts of heat, the RK3566 draws less than **2.0 Watts at idle** and caps out at **4.35 Watts under full CPU saturation**.
 2. **Dedicated Storage Interfaces:** A native eMMC 5.1 connector on the board top, and an M.2 PCIe 2.1 x1 slot underneath the PCB capable of driving NVMe solid-state drives without sharing USB 3.0 bus bandwidth.

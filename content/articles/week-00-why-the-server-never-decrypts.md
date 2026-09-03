@@ -1,6 +1,6 @@
 # Why the Server Never Decrypts: Building a Zero-Knowledge Personal Cloud on a $35 Single Board Computer
 
-*By Prateek Chaudhary · Published August 26, 2026 · Week 00 Technical Essay*
+*By Pratyush Chaudhary · Published August 26, 2026 · Week 00 Technical Essay*
 
 ---
 
