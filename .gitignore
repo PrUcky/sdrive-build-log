@@ -1,9 +1,27 @@
 .env
-*.log
-# build outputs
+.env*
+*.env
+
+# Build outputs
 dist/
 build/
 *.out
+
 # OS artifacts
 .DS_Store
 Thumbs.db
+
+# IDE directories
+.vscode/
+.idea/
+
+# SSH & Private Key Material (safety net)
+*.pem
+*.key
+id_ed25519
+id_ed25519.pub
+id_rsa
+id_rsa.pub
+
+# Exception: tracked dmesg log in docs/
+!docs/*.log

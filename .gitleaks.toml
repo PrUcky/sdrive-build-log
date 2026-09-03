@@ -7,5 +7,17 @@ description = "sdrive gitleaks configuration"
 [[rules]]
 id = "generic-api-key"
 description = "Generic API Key / Token"
-regex = '''(?i)(key|secret|token|password|auth)[=:]["']?[a-zA-Z0-9_\-]{16,40}["']?'''
+regex = '''(?i)(key|secret|token|password|auth)[=:]["']?[a-zA-Z0-9_\-]{16,64}["']?'''
 tags = ["key", "API"]
+
+[[rules]]
+id = "private-key-header"
+description = "Detects private key file headers (RSA, OPENSSH, EC, PGP)"
+regex = '''-----BEGIN (?:RSA|OPENSSH|EC|PGP) PRIVATE KEY-----'''
+tags = ["key", "private-key"]
+
+[[rules]]
+id = "tailscale-auth-key"
+description = "Tailscale Auth Key"
+regex = '''tskey-auth-[a-zA-Z0-9]{16,}'''
+tags = ["key", "tailscale"]
