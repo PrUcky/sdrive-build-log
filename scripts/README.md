@@ -9,6 +9,7 @@ This directory contains shell scripts used for host verification, OS provisionin
 | Script | Purpose | Usage |
 |---|---|---|
 | `verify-env.sh` | Audits the local host development toolchain (`ssh`, `gitleaks`, `bmaptool`, `picocom`, `fio`). | `./scripts/verify-env.sh` |
+| `setup-gitleaks-hook.sh` | Installs a git pre-commit hook to block commits containing secrets using `gitleaks protect`. | `./scripts/setup-gitleaks-hook.sh` |
 | `flash-sd.sh` | Safely flashes Armbian OS images to target microSD cards with block device guardrails. | `sudo ./scripts/flash-sd.sh <image.img> /dev/sdX` |
 | `serial-console.sh` | Auto-detects connected USB-to-UART bridges and opens a 1,500,000 baud serial console to the RK3566 SoC. | `./scripts/serial-console.sh` |
 | `bootstrap-node.sh` | Idempotent system hardening and provisioning script (packages, sysctl, UFW, journald caps, watchdog). | `sudo ./scripts/bootstrap-node.sh` |
