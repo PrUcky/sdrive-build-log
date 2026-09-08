@@ -1,25 +1,61 @@
-flowchart LR
-    subgraph RemoteClient["Remote Environment (Cellular 5G / Coffee Shop)"]
+flowchart TB
+    subgraph RemoteClient["Remote Client (Cellular / Wi-Fi)"]
         Phone["Mobile Device (Ente App)<br/>Tailscale Node: 100.64.0.5"]
     end
 
-    subgraph ISPZone["Public Internet & ISP Infrastructure"]
-        CGNAT["ISP Carrier-Grade NAT Pool<br/>(No Public IPv4 Address)"]
-        DERP["Tailscale Coordination Server<br/>& DERP Relay Network"]
+    subgraph ISP["ISP Infrastructure (CGNAT)"]
+        CGNAT["Carrier-Grade NAT Gateway<br/>100.64.0.1 (RFC 6598)<br/>Hop 2: ~4ms RTT"]
+        Backbone["ISP Backbone<br/>172.16.48.1 (silent ICMP)<br/>Hop 3-4: ~8ms RTT"]
+        Peering["Peering Exchange<br/>72.14.209.1 (Google Edge)<br/>Hop 5: ~9ms RTT"]
     end
 
-    subgraph HomeLAN["Home Network (Local LAN: 192.168.1.0/24)"]
-        Router["Home Gateway / Wi-Fi Router<br/>(No Inbound Ports Forwarded)"]
-        Switch["Gigabit Ethernet Switch"]
-        
-        subgraph Node["sdrive Appliance (Radxa ROCK 3C)"]
-            NIC["Realtek RTL8211F GbE PHY<br/>LAN IP: 192.168.1.150"]
-            Tun["Tailscale WireGuard Interface (tailscale0)<br/>Mesh IP: 100.64.0.10"]
-            Daemon["Museum (Port 8080) & Garage (Port 3900)"]
+    subgraph Internet["Public Internet Services"]
+        DERP["Tailscale Coordination<br/>& DERP Relay"]
+        CF["Cloudflare DNS<br/>1.1.1.1 / 1.0.0.1<br/>~8ms RTT"]
+        GDNS["Google DNS<br/>8.8.8.8 / 8.8.4.4<br/>~12ms RTT"]
+    end
+
+    subgraph HomeLAN["Home LAN: 192.168.1.0/24"]
+        Router["Home Router / Gateway<br/>192.168.1.1<br/>Hop 1: ~0.9ms RTT<br/>No inbound ports forwarded"]
+        Switch["TP-Link Gigabit Switch<br/>Cat5e Uplink"]
+        Desktop["Admin Desktop<br/>192.168.1.100<br/>SSH + diagnostics client"]
+
+        subgraph Appliance["sdrive Appliance \u2014 Radxa ROCK 3C (RK3566)"]
+            ETH["eth0: RTL8211F GbE PHY<br/>IPv4: 192.168.1.150/24<br/>IPv6: fe80::c615:a3ff:fe91:7d42 (link-local only)<br/>MTU: 1500"]
+            TS["tailscale0 (Week 06+)<br/>100.64.0.10<br/>WireGuard ChaCha20-Poly1305"]
+
+            subgraph Services["Application Services (Week 03+)"]
+                Museum["museum API<br/>Port 8080/tcp<br/>LAN: 192.168.1.0/24"]
+                Garage["Garage S3<br/>Port 3900/tcp<br/>LAN: 192.168.1.0/24"]
+                PG["PostgreSQL 16<br/>Port 5432/tcp<br/>127.0.0.1 ONLY"]
+            end
+
+            subgraph Firewall["UFW Netfilter Policy"]
+                FW["Default: DENY incoming<br/>Rule 1: 22/tcp from LAN (SSH)<br/>Rule 2: 8080/tcp from LAN (museum)<br/>Rule 3: 3900/tcp from LAN (Garage)<br/>Rule 4: 5432/tcp from localhost (PG)<br/>IPv6: DROP all except NDP"]
+            end
+
+            subgraph DNS["systemd-resolved"]
+                Resolver["Stub: 127.0.0.53<br/>Primary: 1.1.1.1 (DoT)<br/>Secondary: 8.8.8.8<br/>Fallback: 192.168.1.1<br/>DNSSEC: allow-downgrade"]
+            end
+
+            subgraph Routing["Kernel Routing Table"]
+                RT["default via 192.168.1.1 dev eth0<br/>192.168.1.0/24 dev eth0 (direct)<br/>100.64.0.0/10 dev tailscale0 (planned)"]
+            end
         end
     end
 
-    Phone <--> |STUN / ICE Hole Punching| DERP
-    Node <--> |STUN / ICE Hole Punching| DERP
-    Phone === |Direct P2P Encrypted WireGuard Tunnel| Tun
-    Router --- Switch --- NIC --- Tun --- Daemon
+    Phone <-.-> |STUN / ICE NAT Traversal| DERP
+    Appliance <-.-> |STUN / ICE NAT Traversal| DERP
+    Phone ===== |"Direct P2P WireGuard (462 Mbps)"| TS
+
+    Router --- |Cat5e| Switch
+    Switch --- |Cat5e| ETH
+    Switch --- |Cat5e| Desktop
+    Router --- CGNAT --- Backbone --- Peering
+
+    Resolver -.-> |"8ms DoT"| CF
+    Resolver -.-> |"12ms UDP"| GDNS
+    Resolver -.-> |"14ms UDP"| Router
+
+    ETH --- FW --- Services
+    TS --- FW
