@@ -1,0 +1,96 @@
+# ==============================================================================
+# sdrive — Ente Self-Hosted Stack (Stock Quickstart Baseline)
+# ==============================================================================
+# This is the UNMODIFIED Ente quickstart composition, adapted only for:
+#   - ARM64 image compatibility (ROCK 3C / RK3566)
+#   - Volume paths pointing to the USB SSD at /mnt/data
+#   - Log rotation caps from daemon.json (inherited)
+#
+# Week 03 Day 21: Brought up as-is to establish a known-good baseline.
+# Week 03 Day 22+: Garage replaces MinIO as the S3 object store.
+#
+# Reference: weeks/week-03/day-21.md
+# ==============================================================================
+
+version: "3.8"
+
+services:
+  # --------------------------------------------------------------------------
+  # PostgreSQL 16 — Metadata & Control Plane
+  # --------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-bookworm@sha256:3d9ed832906091d609cfd6f283e79492ace01ba15b6c65850d39c5f07cb5a6e3
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ente_db
+      POSTGRES_USER: pguser
+      POSTGRES_PASSWORD: REPLACE_WITH_STRONG_PASSWORD
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pguser -d ente_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  # --------------------------------------------------------------------------
+  # MinIO — S3-Compatible Object Storage (Stock Quickstart)
+  # Will be replaced by Garage in a subsequent commit.
+  # --------------------------------------------------------------------------
+  minio:
+    image: minio/minio:RELEASE.2024-08-29T01-40-52Z@sha256:c25d64b0a49c6815ba3db9b36a73c39b5b3ad7f5c5e5b0e6f4e0d3cc4b2a7f1e
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: REPLACE_WITH_STRONG_PASSWORD
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  # --------------------------------------------------------------------------
+  # Ente Museum — Go API Backend
+  # --------------------------------------------------------------------------
+  museum:
+    image: ghcr.io/ente-io/server:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./museum.yaml:/museum.yaml:ro
+      - museum-data:/data
+    environment:
+      ENTE_CREDENTIALS_FILE: /museum.yaml
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - internal
+
+volumes:
+  postgres-data:
+    driver: local
+  minio-data:
+    driver: local
+  museum-data:
+    driver: local
+
+networks:
+  internal:
+    driver: bridge
