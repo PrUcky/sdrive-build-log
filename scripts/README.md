@@ -1,6 +1,6 @@
 # sdrive — Operational & Provisioning Scripts
 
-This directory contains shell scripts used for host verification, OS provisioning, serial hardware debugging, network diagnostics, self-healing watchdogs, and benchmark telemetry throughout the 12-week build log.
+This directory contains shell scripts used for host verification, OS provisioning, serial hardware debugging, network diagnostics, container monitoring, self-healing watchdogs, and benchmark telemetry throughout the 12-week build log.
 
 ---
 
@@ -15,6 +15,8 @@ This directory contains shell scripts used for host verification, OS provisionin
 | `bootstrap-node.sh` | Idempotent system hardening and provisioning script (packages, sysctl, UFW, journald caps, watchdog). | `sudo ./scripts/bootstrap-node.sh` |
 | `sdrive-health-watchdog.sh` | Background daemon polling SoC thermals, CPU frequency, RAM usage, and disk capacity into JSON telemetry. | Managed by `sdrive-health-watchdog.service` |
 | `sdrive-network-watchdog.sh` | Network liveness monitor that auto-restarts networking and Tailscale upon persistent connectivity loss. | Managed by `sdrive-network-watchdog.service` |
+| `sdrive-golden-signals.sh` | Four Golden Signals health snapshot: latency, traffic, errors, saturation in a single screen. | `./scripts/sdrive-golden-signals.sh` |
+| `sdrive-container-health.sh` | Docker container dashboard: status, health, CPU/memory, restart counts, and recent events. | `./scripts/sdrive-container-health.sh` |
 | `diag-hardware.sh` | Hardware health inspector: CPU thermals, frequencies, governors, ZRAM pools, block device topology. | `sudo ./scripts/diag-hardware.sh` |
 | `diag-network.sh` | Network connectivity audit: interfaces, routing, gateway reachability, DNS latency, listening ports, UFW state. | `sudo ./scripts/diag-network.sh` |
 | `monitor-resources.sh` | Real-time process, memory, and I/O telemetry dashboard for all sdrive core daemons. | `sudo ./scripts/monitor-resources.sh` |
