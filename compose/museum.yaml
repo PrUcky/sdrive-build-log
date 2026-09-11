@@ -1,0 +1,62 @@
+# ==============================================================================
+# museum.yaml — Ente Museum Backend Configuration (Stock Baseline)
+# ==============================================================================
+# This is the minimal configuration required to bring up the Ente museum
+# backend against the stock docker-compose quickstart.
+#
+# SECURITY NOTES:
+#   - All passwords/secrets below are PLACEHOLDERS. Replace before deployment.
+#   - The JWT secret MUST be a cryptographically random 32+ byte string.
+#   - The key.encryption and key.hash values are hex-encoded keys for
+#     server-side key wrapping (NOT the user's encryption keys).
+#
+# Reference: weeks/week-03/day-21.md
+# ==============================================================================
+
+db:
+  host: postgres
+  port: 5432
+  name: ente_db
+  user: pguser
+  password: REPLACE_WITH_STRONG_PASSWORD
+  sslmode: disable
+
+s3:
+  are_local_buckets: true
+  endpoint: http://minio:9000
+  region: us-east-1
+  access_key: minioadmin
+  secret_key: REPLACE_WITH_STRONG_PASSWORD
+  bucket: b2-eu-cen
+
+jwt:
+  secret: REPLACE_WITH_64_CHAR_HEX_SECRET
+
+key:
+  encryption: REPLACE_WITH_64_CHAR_HEX_KEY
+  hash: REPLACE_WITH_64_CHAR_HEX_KEY
+
+# --------------------------------------------------------------------------
+# Internal admin configuration
+# --------------------------------------------------------------------------
+# After creating your first account, find your numeric user ID in the
+# museum logs, then add it here and restart the container:
+#
+# internal:
+#   admins:
+#     - YOUR_NUMERIC_USER_ID
+#
+# Then run:  ente admin update-subscription --no-limit
+# This removes the trial storage quota that blocks large imports.
+# --------------------------------------------------------------------------
+
+smtp:
+  # For self-hosted, verification codes are read from container logs.
+  # SMTP is optional and only needed for email delivery.
+  host: ""
+  port: 587
+  username: ""
+  password: ""
+
+log:
+  level: info
