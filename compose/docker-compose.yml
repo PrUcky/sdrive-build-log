@@ -1,15 +1,16 @@
 # ==============================================================================
-# sdrive — Ente Self-Hosted Stack (Stock Quickstart Baseline)
+# sdrive — Ente Self-Hosted Stack (Garage Edition)
 # ==============================================================================
-# This is the UNMODIFIED Ente quickstart composition, adapted only for:
-#   - ARM64 image compatibility (ROCK 3C / RK3566)
-#   - Volume paths pointing to the USB SSD at /mnt/data
-#   - Log rotation caps from daemon.json (inherited)
+# CHANGELOG from stock quickstart baseline:
+#   - REPLACED MinIO with Garage (Rust S3 daemon, ~30 MB vs ~90 MB RAM)
+#   - Garage data/meta dirs mounted directly to SSD at /mnt/data/garage
+#   - Museum S3 endpoint updated to point at garage:3900
+#   - All other services unchanged from Day 21 baseline
 #
-# Week 03 Day 21: Brought up as-is to establish a known-good baseline.
-# Week 03 Day 22+: Garage replaces MinIO as the S3 object store.
+# Week 03 Day 21: Stock quickstart with MinIO (baseline proved)
+# Week 03 Day 22: MinIO → Garage swap (this file)
 #
-# Reference: weeks/week-03/day-21.md
+# Reference: weeks/week-03/day-22.md
 # ==============================================================================
 
 version: "3.8"
@@ -36,23 +37,34 @@ services:
       - internal
 
   # --------------------------------------------------------------------------
-  # MinIO — S3-Compatible Object Storage (Stock Quickstart)
-  # Will be replaced by Garage in a subsequent commit.
+  # Garage — Rust S3-Compatible Object Storage
   # --------------------------------------------------------------------------
-  minio:
-    image: minio/minio:RELEASE.2024-08-29T01-40-52Z@sha256:c25d64b0a49c6815ba3db9b36a73c39b5b3ad7f5c5e5b0e6f4e0d3cc4b2a7f1e
+  # Replaces MinIO from the stock quickstart.
+  #
+  # WHY GARAGE:
+  #   - Written in Rust: 30 MB RSS vs MinIO's 90 MB (critical on 4 GB board)
+  #   - Single static binary, no runtime dependencies
+  #   - Designed for edge/self-hosted from the ground up
+  #   - S3-compatible: museum can't tell the difference
+  #
+  # FIRST-TIME SETUP:
+  #   After `docker compose up -d`, run:
+  #     ./scripts/garage-init-layout.sh
+  #   This assigns the node role, creates the bucket, and generates API keys.
+  # --------------------------------------------------------------------------
+  garage:
+    image: dxflrs/garage:v1.0.1
     restart: unless-stopped
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: REPLACE_WITH_STRONG_PASSWORD
-    command: server /data --console-address ":9001"
     volumes:
-      - minio-data:/data
+      - ./garage.toml:/etc/garage.toml:ro
+      - garage-meta:/mnt/data/garage/meta
+      - garage-data:/mnt/data/garage/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "curl", "-f", "http://localhost:3903/health"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 15s
     networks:
       - internal
 
@@ -65,12 +77,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      minio:
+      garage:
         condition: service_healthy
     ports:
       - "8080:8080"
     volumes:
-      - ./museum.yaml:/museum.yaml:ro
+      - ./museum.yaml:ro
       - museum-data:/data
     environment:
       ENTE_CREDENTIALS_FILE: /museum.yaml
@@ -86,7 +98,9 @@ services:
 volumes:
   postgres-data:
     driver: local
-  minio-data:
+  garage-meta:
+    driver: local
+  garage-data:
     driver: local
   museum-data:
     driver: local
