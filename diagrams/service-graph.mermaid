@@ -1,0 +1,63 @@
+flowchart TB
+    subgraph Host["ROCK 3C Host (Armbian Bookworm)"]
+        Docker["Docker Engine 27.2"]
+        SSD["/mnt/data (USB SSD 500GB)"]
+        SD["/dev/mmcblk0 (64GB microSD)"]
+    end
+
+    subgraph Bridge["Docker Bridge Network: internal"]
+        subgraph PGContainer["postgres (PostgreSQL 16)"]
+            PG_PROC["pg_isready healthcheck"]
+            PG_PORT["5432/tcp (internal only)"]
+        end
+
+        subgraph GarageContainer["garage (Garage v1.0.1 / Rust)"]
+            G_S3["S3 API: 3900/tcp"]
+            G_RPC["RPC: 3901/tcp"]
+            G_WEB["Web: 3902/tcp"]
+            G_ADMIN["Admin: 3903/tcp (healthcheck)"]
+        end
+
+        subgraph MuseumContainer["museum (Ente Server / Go)"]
+            M_API["HTTP API: 8080/tcp"]
+            M_HEALTH["/health endpoint"]
+        end
+    end
+
+    subgraph Volumes["Docker Volumes (on USB SSD)"]
+        V_PG["postgres-data<br/>/var/lib/postgresql/data"]
+        V_GM["garage-meta<br/>/mnt/data/garage/meta"]
+        V_GD["garage-data<br/>/mnt/data/garage/data"]
+        V_MU["museum-data<br/>/data"]
+    end
+
+    subgraph Clients["Client Devices"]
+        Phone["Ente Mobile App"]
+        Desktop["Admin Desktop<br/>192.168.1.100"]
+    end
+
+    %% Data flow
+    Phone -->|"HTTPS (future)"| M_API
+    Desktop -->|"curl / SSH"| M_API
+
+    M_API -->|"SQL (metadata, auth, keys)"| PG_PORT
+    M_API -->|"S3 PUT/GET (encrypted blobs)"| G_S3
+
+    %% Volume mounts
+    PGContainer ---|"volume mount"| V_PG
+    GarageContainer ---|"volume mount"| V_GM
+    GarageContainer ---|"volume mount"| V_GD
+    MuseumContainer ---|"volume mount"| V_MU
+
+    %% Storage backing
+    V_PG -.-> SSD
+    V_GM -.-> SSD
+    V_GD -.-> SSD
+    V_MU -.-> SSD
+
+    %% Host port publishing
+    M_API -.->|"published: 0.0.0.0:8080"| Host
+
+    %% Startup dependencies
+    MuseumContainer -->|"depends_on: healthy"| PGContainer
+    MuseumContainer -->|"depends_on: healthy"| GarageContainer
