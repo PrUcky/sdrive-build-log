@@ -17,6 +17,7 @@ This directory contains shell scripts used for host verification, OS provisionin
 | `sdrive-network-watchdog.sh` | Network liveness monitor that auto-restarts networking and Tailscale upon persistent connectivity loss. | Managed by `sdrive-network-watchdog.service` |
 | `sdrive-golden-signals.sh` | Four Golden Signals health snapshot: latency, traffic, errors, saturation in a single screen. | `./scripts/sdrive-golden-signals.sh` |
 | `sdrive-container-health.sh` | Docker container dashboard: status, health, CPU/memory, restart counts, and recent events. | `./scripts/sdrive-container-health.sh` |
+| `garage-init-layout.sh` | One-time Garage cluster layout initialization: assigns node role, creates bucket, generates API keys. | `./scripts/garage-init-layout.sh` |
 | `diag-hardware.sh` | Hardware health inspector: CPU thermals, frequencies, governors, ZRAM pools, block device topology. | `sudo ./scripts/diag-hardware.sh` |
 | `diag-network.sh` | Network connectivity audit: interfaces, routing, gateway reachability, DNS latency, listening ports, UFW state. | `sudo ./scripts/diag-network.sh` |
 | `monitor-resources.sh` | Real-time process, memory, and I/O telemetry dashboard for all sdrive core daemons. | `sudo ./scripts/monitor-resources.sh` |
