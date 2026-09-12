@@ -1,0 +1,46 @@
+# ==============================================================================
+# garage.toml — Garage S3-Compatible Object Storage Configuration
+# ==============================================================================
+# Garage is a lightweight, self-contained, distributed object storage engine
+# written in Rust. It replaces MinIO in the sdrive stack for several reasons:
+#   - 10x lower memory footprint (~30 MB vs ~90 MB idle)
+#   - Single static binary, no JVM or runtime dependencies
+#   - Designed for single-node and multi-node deployments equally
+#   - S3-compatible API for seamless museum backend integration
+#
+# IMPORTANT: After first start, you MUST initialize the cluster layout:
+#   1. garage status              (get the node ID)
+#   2. garage layout assign -z dc1 -c 1G <node-id>
+#   3. garage layout apply --version 1
+#   4. garage bucket create b2-eu-cen
+#   5. garage key create ente-server-key
+#   6. garage bucket allow --read --write --owner b2-eu-cen --key ente-server-key
+#
+# See: scripts/garage-init-layout.sh for automated setup.
+# Reference: weeks/week-03/day-22.md
+# ==============================================================================
+
+metadata_dir = "/mnt/data/garage/meta"
+data_dir = "/mnt/data/garage/data"
+
+db_engine = "sqlite"
+
+replication_factor = 1
+
+[rpc]
+secret = "REPLACE_WITH_64_CHAR_HEX_RPC_SECRET"
+bind_addr = "[::]:3901"
+# For single-node deployment, no bootstrap peers needed.
+bootstrap_peers = []
+
+[s3_api]
+api_bind_addr = "[::]:3900"
+s3_region = "us-east-1"
+root_domain = ".s3.garage.localhost"
+
+[s3_web]
+bind_addr = "[::]:3902"
+root_domain = ".web.garage.localhost"
+
+[admin]
+api_bind_addr = "0.0.0.0:3903"
