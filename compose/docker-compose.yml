@@ -1,16 +1,13 @@
 # ==============================================================================
-# sdrive — Ente Self-Hosted Stack (Garage Edition)
+# sdrive — Ente Self-Hosted Stack (Hardened Garage Edition)
 # ==============================================================================
-# CHANGELOG from stock quickstart baseline:
-#   - REPLACED MinIO with Garage (Rust S3 daemon, ~30 MB vs ~90 MB RAM)
-#   - Garage data/meta dirs mounted directly to SSD at /mnt/data/garage
-#   - Museum S3 endpoint updated to point at garage:3900
-#   - All other services unchanged from Day 21 baseline
+# CHANGELOG:
+#   Day 21: Stock quickstart with MinIO (baseline proved)
+#   Day 22: MinIO → Garage swap
+#   Day 23: Container hardening (resource limits, security opts, read-only
+#           rootfs, restart policies, tmpfs for transient writes)
 #
-# Week 03 Day 21: Stock quickstart with MinIO (baseline proved)
-# Week 03 Day 22: MinIO → Garage swap (this file)
-#
-# Reference: weeks/week-03/day-22.md
+# Reference: weeks/week-03/day-23.md, docs/container-hardening-checklist.md
 # ==============================================================================
 
 version: "3.8"
@@ -28,6 +25,18 @@ services:
       POSTGRES_PASSWORD: REPLACE_WITH_STRONG_PASSWORD
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    # --- HARDENING (Day 23) ---
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 64M
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=32M
+      - /run:size=16M
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pguser -d ente_db"]
       interval: 10s
@@ -39,19 +48,6 @@ services:
   # --------------------------------------------------------------------------
   # Garage — Rust S3-Compatible Object Storage
   # --------------------------------------------------------------------------
-  # Replaces MinIO from the stock quickstart.
-  #
-  # WHY GARAGE:
-  #   - Written in Rust: 30 MB RSS vs MinIO's 90 MB (critical on 4 GB board)
-  #   - Single static binary, no runtime dependencies
-  #   - Designed for edge/self-hosted from the ground up
-  #   - S3-compatible: museum can't tell the difference
-  #
-  # FIRST-TIME SETUP:
-  #   After `docker compose up -d`, run:
-  #     ./scripts/garage-init-layout.sh
-  #   This assigns the node role, creates the bucket, and generates API keys.
-  # --------------------------------------------------------------------------
   garage:
     image: dxflrs/garage:v1.0.1
     restart: unless-stopped
@@ -59,6 +55,18 @@ services:
       - ./garage.toml:/etc/garage.toml:ro
       - garage-meta:/mnt/data/garage/meta
       - garage-data:/mnt/data/garage/data
+    # --- HARDENING (Day 23) ---
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 32M
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3903/health"]
       interval: 10s
@@ -82,10 +90,22 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./museum.yaml:ro
+      - ./museum.yaml:/museum.yaml:ro
       - museum-data:/data
     environment:
       ENTE_CREDENTIALS_FILE: /museum.yaml
+    # --- HARDENING (Day 23) ---
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 15s
