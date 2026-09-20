@@ -1,0 +1,19 @@
+# sdrive Log Rotation Configuration
+#
+# Install: sudo cp config/logrotate/sdrive /etc/logrotate.d/sdrive
+#
+# Reference: weeks/week-04/day-29.md
+
+/var/log/sdrive/*.log {
+    daily
+    missingok
+    rotate 7
+    compress
+    delaycompress
+    notifempty
+    create 0640 root root
+    sharedscripts
+    postrotate
+        # No service restart needed — scripts append to logs
+    endscript
+}

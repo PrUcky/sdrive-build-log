@@ -1,0 +1,36 @@
+# ==============================================================================
+# sdrive-cron-schedule — Automated Maintenance Crontab
+# ==============================================================================
+# Install: sudo crontab -u root < config/cron/sdrive-crontab
+#   or:   sudo cp config/cron/sdrive-crontab /etc/cron.d/sdrive
+#
+# All jobs log to /var/log/sdrive/ with rotation handled by logrotate.
+# Exit codes from monitor scripts trigger escalation:
+#   0 = clean, 1 = warning logged, 2 = critical, 3 = fatal
+#
+# Reference: weeks/week-04/day-29.md
+# ==============================================================================
+
+# Metadata volume backup — daily at 03:00 AM (low-activity window)
+# Backs up PostgreSQL data, Garage metadata, Museum state (NOT photo blobs)
+0 3 * * * /opt/sdrive/scripts/sdrive-stack-backup.sh /mnt/data/backups >> /var/log/sdrive/backup.log 2>&1
+
+# Storage health monitor — every 6 hours
+# Checks SSD capacity, SMART health, inode usage, backup freshness
+0 */6 * * * /opt/sdrive/scripts/sdrive-storage-monitor.sh --quiet >> /var/log/sdrive/storage-monitor.log 2>&1
+
+# Golden Signals snapshot — every hour (lightweight)
+# Captures system health: latency, traffic, errors, saturation
+0 * * * * /opt/sdrive/scripts/sdrive-golden-signals.sh >> /var/log/sdrive/golden-signals.log 2>&1
+
+# Container health check — every 15 minutes
+# Verifies all containers are running and healthy
+*/15 * * * * /opt/sdrive/scripts/sdrive-container-health.sh >> /var/log/sdrive/container-health.log 2>&1
+
+# Docker system prune — weekly on Sunday at 04:00 AM
+# Removes dangling images, stopped containers, unused networks
+0 4 * * 0 docker system prune -f >> /var/log/sdrive/docker-prune.log 2>&1
+
+# Log rotation for sdrive logs — daily at 05:00 AM
+# Keeps last 7 days of monitoring logs
+0 5 * * * find /var/log/sdrive/ -name '*.log' -mtime +7 -delete 2>/dev/null
