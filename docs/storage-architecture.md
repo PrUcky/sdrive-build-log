@@ -1,74 +1,179 @@
-# Embedded Storage Architecture & Flash Durability Strategy
+# sdrive Storage Architecture
 
-This document outlines the multi-tiered storage architecture, flash endurance protections, and filesystem parameters engineered for the `sdrive` appliance.
+*Reference: weeks/week-04/day-26.md through day-30.md*
 
----
-
-## 1. Physical Storage Hierarchy
-
-```
-+-----------------------------------------------------------------------------+
-| TIER 0: Volatile Fast RAM Cache (LPDDR4 - 4GB Pool)                         |
-| - Linux Page Cache (Buffers active inodes, directory entries, S3 chunks)    |
-| - In-Memory ZRAM Overlay: Compressed `/var/log` (zram1) + Swap (zram0)      |
-+-----------------------------------------------------------------------------+
-                                     |
-                       [ Periodic Sync / Writeback ]
-                                     |
-+-----------------------------------------------------------------------------+
-| TIER 1: Operating System & Metadata Storage (v1: MicroSD / v2: eMMC 5.1)    |
-| - Root Filesystem (`/`): Linux kernel, systemd units, configuration files   |
-| - Database Storage (`/var/lib/postgresql`): Relational metadata tables       |
-| - Garage Metadata (`/var/lib/garage/meta`): High-speed LMDB object index    |
-+-----------------------------------------------------------------------------+
-                                     |
-                       [ Dedicated Direct Storage Bus ]
-                                     |
-+-----------------------------------------------------------------------------+
-| TIER 2: High-Volume Ciphertext Blob Storage (v2: NVMe M.2 2280 SSD)         |
-| - Garage Data Pool (`/var/lib/garage/data`): Raw encrypted photo/video blobs |
-| - PCIe 2.1 x1 Interface (~500 MB/s bandwidth)                                |
-+-----------------------------------------------------------------------------+
-```
+This document is the authoritative reference for how data lives on the sdrive appliance: what gets stored where, how it flows from phone to disk, how it's backed up, and how it's monitored.
 
 ---
 
-## 2. Flash Durability & Write Amplification Mitigation
+## Data Flow: Phone to Disk
 
-Consumer flash storage (especially microSD cards) is highly susceptible to **Write Amplification Factor (WAF)**. When an operating system executes thousands of continuous small (512-byte to 4KB) writes (such as daemon access logs and database WAL flushes), the flash controller is forced to repeatedly erase and rewrite entire 2MB to 4MB flash blocks, rapidly burning through the physical Program/Erase (P/E) cycles of the NAND cells.
+```
+Phone (Ente App)
+  │ 1. Encrypt photo: XChaCha20-Poly1305 + Argon2id key derivation
+  │ 2. POST /files/upload (encrypted blob + encrypted key bundle)
+  ▼
+Museum (Go Backend, :8080)
+  │ 3. Validate JWT → store metadata in PostgreSQL
+  │ 4. S3 PUT → encrypted blob to Garage
+  ▼
+Garage (Rust S3 Engine, :3900)
+  │ 5. Blake2 hash → block storage on SSD
+  ▼
+USB SSD (/mnt/data, ext4, noatime, discard)
+```
 
-### sdrive Flash Protection Mechanisms:
-
-1. **In-Memory Logging via Armbian `zram` Overlay:**
-   - `/var/log` is mounted on an in-memory compressed block device (`/dev/zram1`).
-   - Log writes are absorbed entirely in RAM.
-   - The `armbian-ramlog` daemon flushes log snapshots to disk only once per hour and upon clean system shutdown.
-
-2. **Systemd Journal Hard Quotas (`01-sdrive-caps.conf`):**
-   - Hard cap of **100MB** placed on persistent systemd journal storage.
-   - Prevents misbehaving or noisy third-party services from exhausting disk space.
-
-3. **Consolidated Kernel Dirty Page Writeback:**
-   - Configured `vm.dirty_background_ratio = 5` and `vm.dirty_writeback_centisecs = 1500` in `/etc/sysctl.d/99-sdrive-zram-storage.conf`.
-   - Small writes are coalesced in the Linux page cache for up to 15 seconds before being committed as contiguous sequential block writes to flash.
-
-4. **Periodic TRIM Discard (`fstrim.timer`):**
-   - Enabled weekly `fstrim` jobs across all mounted ext4 partitions.
-   - Informs the flash controller’s Wear Leveling algorithms which blocks are free, maintaining write performance and extending lifespan.
+**Zero-knowledge guarantee:** The server never sees plaintext photos, encryption keys, or passphrases. Compromising the entire board yields only encrypted blobs and encrypted key bundles.
 
 ---
 
-## 3. Filesystem Mount Configuration (`/etc/fstab`)
+## Storage Tiers
 
-All persistent partitions are mounted by explicit **UUID** to prevent boot failures if block device assignment order (`/dev/mmcblk0` vs `/dev/sda` vs `/dev/nvme0n1`) changes across kernel revisions.
+### Tier 1: Metadata (Irreplaceable)
 
-```text
-# /etc/fstab baseline for sdrive appliance
-UUID=5a7c3b2e-4819-4f22-901e-72bc381f9a12  /      ext4  defaults,noatime,commit=60,errors=remount-ro  0  1
-UUID=a83b9c1d-1234-4567-89ab-cdef01234567  /data  ext4  defaults,noatime,commit=60,nofail             0  2
+| Component | Location | Content | Size (empty) | Growth Rate |
+|---|---|---|---|---|
+| PostgreSQL | `sdrive-stack_postgres-data` volume | User accounts, album structure, encrypted key bundles, subscription state | 8.4 MB | ~168 KB/photo |
+| Garage SQLite | `sdrive-stack_garage-meta` volume | S3 object index, bucket config, API keys | 148 KB | ~300 B/object |
+| Museum state | `sdrive-stack_museum-data` volume | Application transient state | 12 KB | Minimal |
+
+**Backup method:** `scripts/sdrive-stack-backup.sh` — nightly tar.gz, 5 copies retained, ~2.3 MB per snapshot.
+
+> **CRITICAL:** If metadata is lost, encrypted photo blobs become permanently unrecoverable. The encryption key bundles stored in PostgreSQL are the ONLY way to decrypt the photos.
+
+### Tier 2: Blob Data (Encrypted Photos)
+
+| Component | Location | Content | Growth Rate |
+|---|---|---|---|
+| Garage blocks | `sdrive-stack_garage-data` volume | Encrypted photo/video blobs, thumbnails, metadata envelopes | ~4.5 MB/photo |
+
+**Backup method:** `scripts/sdrive-blob-backup.sh` — rsync incremental to external drive or network target.
+
+### Tier 3: System (Replaceable)
+
+| Component | Location | Content |
+|---|---|---|
+| Docker images | `/mnt/data/docker/` | Container images (~680 MB, re-pullable) |
+| Container layers | `/mnt/data/docker/overlay2/` | Runtime state (ephemeral) |
+| Monitoring logs | `/var/log/sdrive/` | Cron job output (7-day rotation, ~372 KB/week) |
+
+**Backup method:** None needed. Docker images are pulled from registries. Logs are diagnostic only.
+
+---
+
+## S3 Object Structure (Per Photo)
+
+Each photo uploaded by the Ente app creates **5 S3 objects** in Garage:
+
+| Object | Typical Size | Purpose |
+|---|---|---|
+| Encrypted original | 2–12 MB | Full-resolution encrypted photo |
+| Encrypted thumbnail | 200–400 KB | Gallery preview (encrypted) |
+| Metadata envelope | 10–20 KB | Encrypted EXIF, timestamps |
+| Key bundle | 2–4 KB | File key encrypted with master key |
+| Collection reference | 1–2 KB | Album membership |
+
+**Overhead:** ~6–9% above raw photo size. 100,000 photos = 500,000 S3 objects.
+
+---
+
+## Garage On-Disk Layout
+
+```
+/mnt/data/docker/volumes/sdrive-stack_garage-data/_data/
+├── 2f/
+│   └── e8/
+│       └── 2fe8a1b3c4d5e6f7...  (Blake2 hash-named block)
+├── 7a/
+│   └── 91/
+│       └── 7a91c2d3e4f5a6b7...
+└── .../
 ```
 
-### Mount Option Rationale:
-- **`noatime`**: Disables updating the access timestamp inode attribute every time a file or photo is read. Completely eliminates write operations during read-only album browsing.
-- **`commit=60`**: Instructs the ext4 journaling thread to commit data and metadata to disk every 60 seconds (instead of the default 5 seconds), consolidating random write batches.
-- **`errors=remount-ro`**: Automatically remounts the root filesystem as read-only if hardware I/O corruption is detected, preventing cascade data corruption.
+Two-level hash-partitioned directory tree. Prevents any single directory from exceeding ext4's performance cliff (~10,000 entries per directory).
+
+---
+
+## Capacity Planning
+
+### SSD Budget
+
+| Category | Size | Notes |
+|---|---|---|
+| OS + Docker images | 1.2 GB | Stable |
+| PostgreSQL (100K photos) | ~200 MB | Grows with photo count |
+| Garage metadata (500K objects) | ~150 MB | Grows with object count |
+| **Available for photos** | **~434 GB** | |
+
+### Photo Capacity Estimates
+
+| Usage Pattern | Photos/Year | Storage/Year | Years Until Full |
+|---|---|---|---|
+| Casual (5/day) | 1,825 | 7.3 GB | 59 |
+| Active (20/day) | 7,300 | 29.2 GB | 14.8 |
+| Heavy (50/day) | 18,250 | 73 GB | 5.9 |
+| Power + video (100/day) | 36,500 | 292 GB | 1.5 |
+
+### Inode Budget
+
+Total inodes: 30.5 million. At 5 objects/photo: supports **6 million photos** before inode exhaustion.
+
+---
+
+## Backup Architecture
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    sdrive Backup Tiers                      │
+├───────────────────────────────┬──────────────────────────────┤
+│  TIER 1: Metadata             │  TIER 2: Blobs               │
+│  sdrive-stack-backup.sh       │  sdrive-blob-backup.sh        │
+│                               │                               │
+│  Method: tar.gz snapshot      │  Method: rsync incremental     │
+│  Schedule: 3:00 AM daily      │  Schedule: 3:30 AM daily       │
+│  Size: ~2–5 MB                │  Size: mirrors source          │
+│  Retention: 5 copies          │  Retention: 1 mirror           │
+│  Contains: PG data, SQLite,   │  Contains: encrypted photo     │
+│    museum state, key bundles  │    blobs, thumbnails           │
+│  Loss impact: CATASTROPHIC    │  Loss impact: re-upload needed │
+└───────────────────────────────┴──────────────────────────────┘
+```
+
+### Restore Procedure
+
+1. **Metadata restore:** Extract tar.gz snapshots back to Docker volumes
+2. **Blob restore:** rsync from backup to `garage-data` volume
+3. **Re-initialize Garage layout:** `scripts/garage-init-layout.sh` (if cluster state lost)
+4. **Restart stack:** `docker compose up -d`
+5. **Verify:** Check museum health, test photo download from app
+
+---
+
+## Monitoring
+
+| Check | Frequency | Script | Alert Threshold |
+|---|---|---|---|
+| Container health | Every 15 min | `sdrive-container-health.sh` | Any container unhealthy |
+| Golden Signals | Hourly | `sdrive-golden-signals.sh` | Memory > 80%, load > 3.0 |
+| Storage capacity | Every 6 hours | `sdrive-storage-monitor.sh` | >70% warn, >85% crit, >95% fatal |
+| SMART health | Every 6 hours | `sdrive-storage-monitor.sh` | Reallocated sectors > 0 |
+| Backup freshness | Every 6 hours | `sdrive-storage-monitor.sh` | Latest backup > 48h old |
+| Docker cleanup | Weekly (Sun) | `docker system prune` | — |
+
+---
+
+## Performance Baselines (Week 04)
+
+| Metric | Value | Source |
+|---|---|---|
+| Single photo upload | ~0.5s (4.2 MB JPEG over Gigabit LAN) | Day 27 |
+| Sustained upload throughput | 6.5–8.2 MB/s | Day 28 stress test |
+| Bottleneck #1 | Garage SQLite WAL serialization | Day 28 |
+| Bottleneck #2 | Museum in-memory blob buffering | Day 28 (4K video concern) |
+| Encryption overhead | 6–9% above raw photo size | Day 27 |
+| I/O latency (SSD writes) | 0.42 ms average | Day 27 |
+| SSD utilization during burst | 2–3% | Day 27–28 |
+| Cold start to all healthy | ~30 seconds | Day 24 |
+| Metadata backup size | 2.3 MB (fresh, 1 user) | Day 23 |
+| TRIM granularity | 4 KB (matches ext4 block size) | Day 26 |
+| SSD write endurance used | 0.0003% | Day 26 |
