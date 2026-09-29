@@ -1,61 +1,70 @@
-flowchart TB
-    subgraph RemoteClient["Remote Client (Cellular / Wi-Fi)"]
-        Phone["Mobile Device (Ente App)<br/>Tailscale Node: 100.64.0.5"]
+---
+title: sdrive Network Topology (Week 05 — with Tailscale Overlay)
+---
+graph TD
+    subgraph PHONE["Phone (Ente App)"]
+        APP["Ente Client<br/>XChaCha20-Poly1305"]
+        TS_PHONE["Tailscale<br/>100.100.64.11"]
     end
 
-    subgraph ISP["ISP Infrastructure (CGNAT)"]
-        CGNAT["Carrier-Grade NAT Gateway<br/>100.64.0.1 (RFC 6598)<br/>Hop 2: ~4ms RTT"]
-        Backbone["ISP Backbone<br/>172.16.48.1 (silent ICMP)<br/>Hop 3-4: ~8ms RTT"]
-        Peering["Peering Exchange<br/>72.14.209.1 (Google Edge)<br/>Hop 5: ~9ms RTT"]
+    subgraph INTERNET["Internet"]
+        CARRIER_NAT["Carrier CGNAT<br/>10.x.x.x → public"]
+        ISP_NAT["ISP CGNAT<br/>100.64.x.x → public"]
+        TS_CONTROL["Tailscale Control<br/>login.tailscale.com<br/>(coordination only)"]
+        DERP["DERP Relay<br/>(fallback only)<br/>encrypted e2e"]
     end
 
-    subgraph Internet["Public Internet Services"]
-        DERP["Tailscale Coordination<br/>& DERP Relay"]
-        CF["Cloudflare DNS<br/>1.1.1.1 / 1.0.0.1<br/>~8ms RTT"]
-        GDNS["Google DNS<br/>8.8.8.8 / 8.8.4.4<br/>~12ms RTT"]
-    end
+    subgraph HOME["Home Network"]
+        ROUTER["Router<br/>192.168.1.1<br/>WAN: 100.64.0.10 (CGNAT)"]
 
-    subgraph HomeLAN["Home LAN: 192.168.1.0/24"]
-        Router["Home Router / Gateway<br/>192.168.1.1<br/>Hop 1: ~0.9ms RTT<br/>No inbound ports forwarded"]
-        Switch["TP-Link Gigabit Switch<br/>Cat5e Uplink"]
-        Desktop["Admin Desktop<br/>192.168.1.100<br/>SSH + diagnostics client"]
+        subgraph ROCK["ROCK 3C (sdrive) — 192.168.1.150"]
+            UFW["UFW Firewall<br/>SSH :22 (LAN)<br/>Museum :8080 (LAN)<br/>tailscale0 (all)"]
+            TS_DAEMON["tailscaled<br/>100.100.42.17<br/>UDP :41641"]
 
-        subgraph Appliance["sdrive Appliance \u2014 Radxa ROCK 3C (RK3566)"]
-            ETH["eth0: RTL8211F GbE PHY<br/>IPv4: 192.168.1.150/24<br/>IPv6: fe80::c615:a3ff:fe91:7d42 (link-local only)<br/>MTU: 1500"]
-            TS["tailscale0 (Week 06+)<br/>100.64.0.10<br/>WireGuard ChaCha20-Poly1305"]
-
-            subgraph Services["Application Services (Week 03+)"]
-                Museum["museum API<br/>Port 8080/tcp<br/>LAN: 192.168.1.0/24"]
-                Garage["Garage S3<br/>Port 3900/tcp<br/>LAN: 192.168.1.0/24"]
-                PG["PostgreSQL 16<br/>Port 5432/tcp<br/>127.0.0.1 ONLY"]
+            subgraph DOCKER["Docker Bridge (172.18.0.0/16)"]
+                MUSEUM["Museum<br/>Go Backend<br/>:8080<br/>122 MB RSS"]
+                GARAGE["Garage<br/>Rust S3<br/>:3900/:3903<br/>28 MB RSS"]
+                POSTGRES["PostgreSQL 16<br/>:5432<br/>38 MB RSS"]
             end
 
-            subgraph Firewall["UFW Netfilter Policy"]
-                FW["Default: DENY incoming<br/>Rule 1: 22/tcp from LAN (SSH)<br/>Rule 2: 8080/tcp from LAN (museum)<br/>Rule 3: 3900/tcp from LAN (Garage)<br/>Rule 4: 5432/tcp from localhost (PG)<br/>IPv6: DROP all except NDP"]
-            end
-
-            subgraph DNS["systemd-resolved"]
-                Resolver["Stub: 127.0.0.53<br/>Primary: 1.1.1.1 (DoT)<br/>Secondary: 8.8.8.8<br/>Fallback: 192.168.1.1<br/>DNSSEC: allow-downgrade"]
-            end
-
-            subgraph Routing["Kernel Routing Table"]
-                RT["default via 192.168.1.1 dev eth0<br/>192.168.1.0/24 dev eth0 (direct)<br/>100.64.0.0/10 dev tailscale0 (planned)"]
-            end
+            SSD["/mnt/data (USB SSD)<br/>ext4, noatime, discard<br/>458 GB"]
         end
     end
 
-    Phone <-.-> |STUN / ICE NAT Traversal| DERP
-    Appliance <-.-> |STUN / ICE NAT Traversal| DERP
-    Phone ===== |"Direct P2P WireGuard (462 Mbps)"| TS
+    %% Local data path
+    APP -->|"encrypted photos<br/>HTTP :8080"| MUSEUM
+    MUSEUM -->|"metadata<br/>:5432"| POSTGRES
+    MUSEUM -->|"S3 PUT/GET<br/>:3900"| GARAGE
+    GARAGE -->|"Blake2 blocks"| SSD
+    POSTGRES -->|"WAL + data"| SSD
 
-    Router --- |Cat5e| Switch
-    Switch --- |Cat5e| ETH
-    Switch --- |Cat5e| Desktop
-    Router --- CGNAT --- Backbone --- Peering
+    %% Tailscale overlay
+    TS_PHONE -.->|"WireGuard tunnel<br/>(direct, ~3ms LAN / ~45ms mobile)"| TS_DAEMON
+    TS_PHONE -.->|"key exchange"| TS_CONTROL
+    TS_DAEMON -.->|"key exchange"| TS_CONTROL
+    TS_PHONE -.->|"fallback relay"| DERP
+    DERP -.->|"fallback relay"| TS_DAEMON
 
-    Resolver -.-> |"8ms DoT"| CF
-    Resolver -.-> |"12ms UDP"| GDNS
-    Resolver -.-> |"14ms UDP"| Router
+    %% NAT traversal
+    TS_PHONE -->|"hole-punch"| CARRIER_NAT
+    CARRIER_NAT -->|"UDP"| ISP_NAT
+    ISP_NAT -->|"UDP"| ROUTER
+    ROUTER -->|"UDP :41641"| TS_DAEMON
 
-    ETH --- FW --- Services
-    TS --- FW
+    %% Tunnel to app
+    TS_DAEMON -->|"decrypted to<br/>tailscale0"| UFW
+    UFW -->|":8080"| MUSEUM
+
+    classDef phone fill:#4CAF50,stroke:#333,color:#fff
+    classDef internet fill:#FF9800,stroke:#333,color:#fff
+    classDef router fill:#2196F3,stroke:#333,color:#fff
+    classDef container fill:#9C27B0,stroke:#333,color:#fff
+    classDef storage fill:#795548,stroke:#333,color:#fff
+    classDef tailscale fill:#0EA5E9,stroke:#333,color:#fff
+
+    class APP,TS_PHONE phone
+    class CARRIER_NAT,ISP_NAT,TS_CONTROL,DERP internet
+    class ROUTER router
+    class MUSEUM,GARAGE,POSTGRES container
+    class SSD storage
+    class TS_DAEMON,UFW tailscale
