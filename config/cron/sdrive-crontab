@@ -1,36 +1,37 @@
 # ==============================================================================
-# sdrive-cron-schedule — Automated Maintenance Crontab
+# sdrive-cron-schedule — Automated Maintenance Crontab (v2 — Week 05)
 # ==============================================================================
-# Install: sudo crontab -u root < config/cron/sdrive-crontab
-#   or:   sudo cp config/cron/sdrive-crontab /etc/cron.d/sdrive
+# Install: sudo cp config/cron/sdrive-crontab /etc/cron.d/sdrive
 #
 # All jobs log to /var/log/sdrive/ with rotation handled by logrotate.
 # Exit codes from monitor scripts trigger escalation:
 #   0 = clean, 1 = warning logged, 2 = critical, 3 = fatal
 #
-# Reference: weeks/week-04/day-29.md
+# v2 changes: added Tailscale health check, added blob backup
+# Reference: weeks/week-05/day-33.md
 # ==============================================================================
 
-# Metadata volume backup — daily at 03:00 AM (low-activity window)
-# Backs up PostgreSQL data, Garage metadata, Museum state (NOT photo blobs)
+# Metadata volume backup — daily at 03:00 AM
 0 3 * * * /opt/sdrive/scripts/sdrive-stack-backup.sh /mnt/data/backups >> /var/log/sdrive/backup.log 2>&1
 
+# Blob backup (rsync incremental) — daily at 03:30 AM
+# Update destination path to your backup drive/NAS
+30 3 * * * /opt/sdrive/scripts/sdrive-blob-backup.sh /mnt/backup/blobs/ >> /var/log/sdrive/blob-backup.log 2>&1
+
 # Storage health monitor — every 6 hours
-# Checks SSD capacity, SMART health, inode usage, backup freshness
 0 */6 * * * /opt/sdrive/scripts/sdrive-storage-monitor.sh --quiet >> /var/log/sdrive/storage-monitor.log 2>&1
 
-# Golden Signals snapshot — every hour (lightweight)
-# Captures system health: latency, traffic, errors, saturation
-0 * * * * /opt/sdrive/scripts/sdrive-golden-signals.sh >> /var/log/sdrive/golden-signals.log 2>&1
+# Tailscale health monitor — every 15 minutes
+*/15 * * * * /opt/sdrive/scripts/sdrive-tailscale-health.sh --quiet >> /var/log/sdrive/tailscale-health.log 2>&1
 
 # Container health check — every 15 minutes
-# Verifies all containers are running and healthy
-*/15 * * * * /opt/sdrive/scripts/sdrive-container-health.sh >> /var/log/sdrive/container-health.log 2>&1
+7,22,37,52 * * * * /opt/sdrive/scripts/sdrive-container-health.sh >> /var/log/sdrive/container-health.log 2>&1
+
+# Golden Signals snapshot — every hour
+0 * * * * /opt/sdrive/scripts/sdrive-golden-signals.sh >> /var/log/sdrive/golden-signals.log 2>&1
 
 # Docker system prune — weekly on Sunday at 04:00 AM
-# Removes dangling images, stopped containers, unused networks
 0 4 * * 0 docker system prune -f >> /var/log/sdrive/docker-prune.log 2>&1
 
 # Log rotation for sdrive logs — daily at 05:00 AM
-# Keeps last 7 days of monitoring logs
 0 5 * * * find /var/log/sdrive/ -name '*.log' -mtime +7 -delete 2>/dev/null
