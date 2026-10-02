@@ -1,0 +1,88 @@
+# ==============================================================================
+# Caddyfile — TLS-Terminating Reverse Proxy for sdrive
+# ==============================================================================
+# Serves HTTPS on the Tailscale MagicDNS hostname using a Let's Encrypt
+# certificate provisioned via Tailscale's DNS-01 challenge.
+#
+# Architecture:
+#   Phone → WireGuard tunnel → Caddy (:443) → Museum (:8080)
+#
+# Certificate source:
+#   tailscale cert sdrive.REPLACE_WITH_TAILNET.ts.net
+#   Certificates are mounted read-only from the host.
+#
+# Implementation: Week 06
+# Reference: weeks/week-05/day-36.md
+# ==============================================================================
+
+# Global options
+{
+	# Disable Caddy's automatic HTTPS (we use Tailscale-provisioned certs)
+	auto_https off
+
+	# Admin API disabled for security (not needed in appliance mode)
+	admin off
+
+	# Log to stdout for Docker log capture
+	log {
+		output stdout
+		format json
+		level INFO
+	}
+}
+
+# HTTPS listener for Tailscale MagicDNS hostname
+sdrive.REPLACE_WITH_TAILNET.ts.net:443 {
+	# TLS with Tailscale-provisioned Let's Encrypt certificate
+	tls /etc/caddy/certs/sdrive.REPLACE_WITH_TAILNET.ts.net.crt \
+	    /etc/caddy/certs/sdrive.REPLACE_WITH_TAILNET.ts.net.key
+
+	# Reverse proxy to Museum backend on Docker bridge
+	reverse_proxy museum:8080 {
+		# Health check: verify Museum is alive before proxying
+		health_uri /health
+		health_interval 30s
+		health_timeout 5s
+
+		# Proxy headers
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	# Security headers
+	header {
+		# HSTS: enforce HTTPS for 1 year
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+		# Prevent MIME type sniffing
+		X-Content-Type-Options "nosniff"
+
+		# Prevent clickjacking
+		X-Frame-Options "DENY"
+
+		# Referrer policy
+		Referrer-Policy "strict-origin-when-cross-origin"
+
+		# Remove server identification
+		-Server
+	}
+
+	# Request size limit (512 MB for large video uploads)
+	request_body {
+		max_size 512MB
+	}
+
+	# Access logging
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 10mb
+			roll_keep 3
+		}
+	}
+}
+
+# HTTP redirect (if anyone hits port 80, redirect to HTTPS)
+:80 {
+	redir https://sdrive.REPLACE_WITH_TAILNET.ts.net{uri} permanent
+}
