@@ -1,20 +1,55 @@
 # ==============================================================================
-# sdrive — Ente Self-Hosted Stack (Hardened Garage Edition)
+# sdrive - Ente Self-Hosted Stack (Hardened Garage Edition)
 # ==============================================================================
 # CHANGELOG:
 #   Day 21: Stock quickstart with MinIO (baseline proved)
 #   Day 22: MinIO → Garage swap
 #   Day 23: Container hardening (resource limits, security opts, read-only
 #           rootfs, restart policies, tmpfs for transient writes)
+#   Day 38: Added Caddy TLS-terminating reverse proxy, removed Museum public port
 #
-# Reference: weeks/week-03/day-23.md, docs/container-hardening-checklist.md
+# Reference: weeks/week-03/day-23.md, weeks/week-06/day-38.md
 # ==============================================================================
 
 version: "3.8"
 
 services:
   # --------------------------------------------------------------------------
-  # PostgreSQL 16 — Metadata & Control Plane
+  # Caddy - HTTPS Reverse Proxy (Week 06)
+  # --------------------------------------------------------------------------
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ../config/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../certs:/etc/caddy/certs:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      museum:
+        condition: service_healthy
+    # --- HARDENING ---
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 32M
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=32M
+      - /run:size=16M
+      - /var/log/caddy:size=64M
+    networks:
+      - internal
+
+  # --------------------------------------------------------------------------
+  # PostgreSQL 16 - Metadata & Control Plane
   # --------------------------------------------------------------------------
   postgres:
     image: postgres:16-bookworm@sha256:3d9ed832906091d609cfd6f283e79492ace01ba15b6c65850d39c5f07cb5a6e3
@@ -46,7 +81,7 @@ services:
       - internal
 
   # --------------------------------------------------------------------------
-  # Garage — Rust S3-Compatible Object Storage
+  # Garage - Rust S3-Compatible Object Storage
   # --------------------------------------------------------------------------
   garage:
     image: dxflrs/garage:v1.0.1
@@ -77,7 +112,7 @@ services:
       - internal
 
   # --------------------------------------------------------------------------
-  # Ente Museum — Go API Backend
+  # Ente Museum - Go API Backend
   # --------------------------------------------------------------------------
   museum:
     image: ghcr.io/ente-io/server:latest
@@ -87,8 +122,7 @@ services:
         condition: service_healthy
       garage:
         condition: service_healthy
-    ports:
-      - "8080:8080"
+    # Port 8080 removed; traffic now flows through Caddy on the bridge network
     volumes:
       - ./museum.yaml:/museum.yaml:ro
       - museum-data:/data
@@ -123,6 +157,10 @@ volumes:
   garage-data:
     driver: local
   museum-data:
+    driver: local
+  caddy-data:
+    driver: local
+  caddy-config:
     driver: local
 
 networks:
