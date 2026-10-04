@@ -12,7 +12,7 @@
 #   Certificates are mounted read-only from the host.
 #
 # Implementation: Week 06
-# Reference: weeks/week-05/day-36.md
+# Reference: weeks/week-06/day-40.md
 # ==============================================================================
 
 # Global options
@@ -68,9 +68,17 @@ sdrive.REPLACE_WITH_TAILNET.ts.net:443 {
 		-Server
 	}
 
-	# Request size limit (512 MB for large video uploads)
+	# Request size and timeout limits tuned for large video uploads (Day 40)
 	request_body {
-		max_size 512MB
+		max_size 1024MB
+	}
+	
+	# Prevent slow-loris and handle slow mobile uploads
+	timeouts {
+		read_body 10m
+		read_header 10s
+		write 10m
+		idle 5m
 	}
 
 	# Access logging
