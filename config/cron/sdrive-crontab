@@ -1,5 +1,5 @@
 # ==============================================================================
-# sdrive-cron-schedule — Automated Maintenance Crontab (v2 — Week 05)
+# sdrive-cron-schedule - Automated Maintenance Crontab (v3 - Week 07)
 # ==============================================================================
 # Install: sudo cp config/cron/sdrive-crontab /etc/cron.d/sdrive
 #
@@ -7,31 +7,35 @@
 # Exit codes from monitor scripts trigger escalation:
 #   0 = clean, 1 = warning logged, 2 = critical, 3 = fatal
 #
-# v2 changes: added Tailscale health check, added blob backup
-# Reference: weeks/week-05/day-33.md
+# v3 changes: Added SDRIVE_WEBHOOK_URL for push notification alerting
+# Reference: weeks/week-07/day-43.md
 # ==============================================================================
 
-# Metadata volume backup — daily at 03:00 AM
-0 3 * * * /opt/sdrive/scripts/sdrive-stack-backup.sh /mnt/data/backups >> /var/log/sdrive/backup.log 2>&1
+# Alerting Webhook (e.g., Discord, Slack). Leave empty to disable push alerts.
+SDRIVE_WEBHOOK_URL="REPLACE_WITH_ACTUAL_WEBHOOK_URL"
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# Blob backup (rsync incremental) — daily at 03:30 AM
+# Metadata volume backup - daily at 03:00 AM
+0 3 * * * root /opt/sdrive/scripts/sdrive-stack-backup.sh /mnt/data/backups >> /var/log/sdrive/backup.log 2>&1
+
+# Blob backup (rsync incremental) - daily at 03:30 AM
 # Update destination path to your backup drive/NAS
-30 3 * * * /opt/sdrive/scripts/sdrive-blob-backup.sh /mnt/backup/blobs/ >> /var/log/sdrive/blob-backup.log 2>&1
+30 3 * * * root /opt/sdrive/scripts/sdrive-blob-backup.sh /mnt/backup/blobs/ >> /var/log/sdrive/blob-backup.log 2>&1
 
-# Storage health monitor — every 6 hours
-0 */6 * * * /opt/sdrive/scripts/sdrive-storage-monitor.sh --quiet >> /var/log/sdrive/storage-monitor.log 2>&1
+# Storage health monitor - every 6 hours
+0 */6 * * * root /opt/sdrive/scripts/sdrive-storage-monitor.sh --quiet >> /var/log/sdrive/storage-monitor.log 2>&1
 
-# Tailscale health monitor — every 15 minutes
-*/15 * * * * /opt/sdrive/scripts/sdrive-tailscale-health.sh --quiet >> /var/log/sdrive/tailscale-health.log 2>&1
+# Tailscale health monitor - every 15 minutes
+*/15 * * * * root /opt/sdrive/scripts/sdrive-tailscale-health.sh --quiet >> /var/log/sdrive/tailscale-health.log 2>&1
 
-# Container health check — every 15 minutes
-7,22,37,52 * * * * /opt/sdrive/scripts/sdrive-container-health.sh >> /var/log/sdrive/container-health.log 2>&1
+# Container health check - every 15 minutes
+7,22,37,52 * * * * root /opt/sdrive/scripts/sdrive-container-health.sh >> /var/log/sdrive/container-health.log 2>&1
 
-# Golden Signals snapshot — every hour
-0 * * * * /opt/sdrive/scripts/sdrive-golden-signals.sh >> /var/log/sdrive/golden-signals.log 2>&1
+# Golden Signals snapshot - every hour
+0 * * * * root /opt/sdrive/scripts/sdrive-golden-signals.sh >> /var/log/sdrive/golden-signals.log 2>&1
 
-# Docker system prune — weekly on Sunday at 04:00 AM
-0 4 * * 0 docker system prune -f >> /var/log/sdrive/docker-prune.log 2>&1
+# Docker system prune - weekly on Sunday at 04:00 AM
+0 4 * * 0 root docker system prune -f >> /var/log/sdrive/docker-prune.log 2>&1
 
-# Log rotation for sdrive logs — daily at 05:00 AM
-0 5 * * * find /var/log/sdrive/ -name '*.log' -mtime +7 -delete 2>/dev/null
+# Log rotation for sdrive logs - daily at 05:00 AM
+0 5 * * * root find /var/log/sdrive/ -name '*.log' -mtime +7 -delete 2>/dev/null
