@@ -25,3 +25,9 @@ id_rsa.pub
 
 # Exception: tracked dmesg log in docs/
 !docs/*.log
+
+# Android Build Artifacts
+*.apk
+*.aab
+*.keystore
+*.jks
