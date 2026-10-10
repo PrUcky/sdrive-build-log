@@ -1,0 +1,32 @@
+```mermaid
+C4Context
+    title System Context for sdrive Appliance (Week 07)
+
+    Person(user, "Family Member", "Takes photos, views gallery on mobile device")
+    
+    System_Ext(tailscale, "Tailscale Control Plane", "Coordinates WireGuard key exchange and MagicDNS")
+
+    Boundary(device, "Android Phone") {
+        System(app, "sdrive Custom Android App", "Rebranded Ente client. Encrypts photos with XChaCha20.")
+        System(ts_client, "Tailscale Android App", "Provides VPN split-tunnel to the Tailnet.")
+    }
+
+    Boundary(home, "Home Network (Behind CGNAT)") {
+        System_Boundary(rock3c, "ROCK 3C Appliance") {
+            System(caddy, "Caddy Reverse Proxy", "Terminates TLS 1.3 on port 443.")
+            System(museum, "Museum Go API", "Handles authentication and metadata.")
+            System(postgres, "PostgreSQL", "Stores user metadata and object references.")
+            System(garage, "Garage S3", "Stores encrypted photo blobs on external SSD.")
+        }
+    }
+
+    Rel(user, app, "Takes photos & views gallery")
+    Rel(app, ts_client, "Routes traffic to sdrive.tail*.ts.net")
+    Rel(ts_client, tailscale, "Authenticates & gets peer IP")
+    
+    Rel_R(ts_client, caddy, "HTTPS over WireGuard (UDP 41641)", "TLS 1.3")
+    
+    Rel(caddy, museum, "Proxies plaintext HTTP", "Docker Bridge")
+    Rel(museum, postgres, "Reads/Writes metadata", "TCP 5432")
+    Rel(museum, garage, "Reads/Writes blobs", "S3 API (TCP 3900)")
+```
